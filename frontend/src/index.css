@@ -1,0 +1,16 @@
+/* frontend/src/index.css */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font-family: "Roboto", system-ui, sans-serif;
+  background: #fafafa;
+}

@@ -1,0 +1,124 @@
+# ==========================================
+# DEPENDENCIAS
+# ==========================================
+node_modules/
+node_modules
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.pnpm-store/
+
+# ==========================================
+# VARIABLES DE ENTORNO / SECRETOS
+# ==========================================
+# NUNCA subir .env reales (contienen DB_PASSWORD, JWT_SECRET, etc.)
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+*.env
+!.env.example
+
+# ==========================================
+# BUILD / DIST
+# ==========================================
+dist/
+dist-ssr/
+build/
+out/
+.vite/
+*.local
+
+# ==========================================
+# TESTING / COBERTURA
+# ==========================================
+coverage/
+.nyc_output/
+*.lcov
+junit.xml
+test-results/
+
+# ==========================================
+# LOGS
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==========================================
+# BACKUPS DE BASE DE DATOS
+# ==========================================
+backups/
+backup/
+*.sql.gz
+cancha_control_*.sql
+*_backup_*.sql
+
+# ==========================================
+# CACHÉS
+# ==========================================
+.cache/
+.eslintcache
+.oxlintcache
+.stylelintcache
+.parcel-cache/
+.temp/
+.tmp/
+
+# ==========================================
+# SISTEMA OPERATIVO
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# EDITORES / IDEs
+# ==========================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+
+# ==========================================
+# ARCHIVOS GENERADOS POR HERRAMIENTAS
+# ==========================================
+# Reporte de proyecto (generado por generar-reporte.ps1)
+reporte*.txt
+REPORTE*.txt
+pasted text.txt
+
+# ==========================================
+# OTROS
+# ==========================================
+*.pid
+*.seed
+*.pid.lock
+.eslintcache
+.tsbuildinfo
+*.tsbuildinfo
+npm-shrinkwrap.json

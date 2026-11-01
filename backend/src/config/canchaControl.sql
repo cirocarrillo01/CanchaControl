@@ -1,0 +1,145 @@
+-- backend/src/config/schema.sql
+-- Esquema de CanchaControl. Idempotente: el seed hace DROP DATABASE antes.
+SET NAMES utf8mb4;
+SET time_zone = '-05:00';
+
+CREATE DATABASE IF NOT EXISTS cancha_control
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE cancha_control;
+
+-- USUARIOS (RF01-RF05, RNF05, RNF06, RNF13) --------------------------
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  phone VARCHAR(20) NULL,
+  password VARCHAR(255) NOT NULL,
+  role ENUM('administrador','cliente','dueno','vigilancia') NOT NULL DEFAULT 'cliente',
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  failed_attempts INT NOT NULL DEFAULT 0,
+  locked_until DATETIME NULL,
+  terms_accepted_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- CANCHAS (RF06, RNF08) ----------------------------------------------
+CREATE TABLE IF NOT EXISTS courts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL UNIQUE,
+  description VARCHAR(255) NULL,
+  status ENUM('activa','mantenimiento','inactiva') NOT NULL DEFAULT 'activa',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- CONFIGURACIÓN (RF07) -----------------------------------------------
+CREATE TABLE IF NOT EXISTS settings (
+  `key` VARCHAR(50) PRIMARY KEY,
+  `value` VARCHAR(255) NOT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- TARIFAS (RF08) -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS rates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  court_id INT NULL,
+  day_type ENUM('semana','finde','festivo') NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  price DECIMAL(10,0) NOT NULL,
+  CONSTRAINT fk_rates_court FOREIGN KEY (court_id) REFERENCES courts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- FESTIVOS (RF08): días festivos que se tarifan como fin de semana.
+CREATE TABLE IF NOT EXISTS holidays (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  holiday_date DATE NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- RESERVAS (RF14-RF30, RF44) -----------------------------------------
+CREATE TABLE IF NOT EXISTS bookings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(10) NOT NULL UNIQUE,
+  court_id INT NOT NULL,
+  customer_id INT NULL,
+  customer_name VARCHAR(100) NOT NULL,
+  customer_phone VARCHAR(20) NULL,
+  `date` DATE NOT NULL,
+  start_time TIME NOT NULL,
+  duration_blocks TINYINT NOT NULL DEFAULT 1,
+  status ENUM('procesando','ocupada','en_curso','finalizada','cancelada','vencida') NOT NULL DEFAULT 'procesando',
+  price_total DECIMAL(10,0) NOT NULL DEFAULT 0,
+  expires_at DATETIME NULL,
+  timer_started_at DATETIME NULL,
+  timer_ends_at DATETIME NULL,
+  extra_minutes INT NOT NULL DEFAULT 0,
+  cancel_reason VARCHAR(255) NULL,
+  cancelled_at DATETIME NULL,
+  cancelled_by INT NULL,
+  finished_at DATETIME NULL,
+  checked_in_at DATETIME NULL,
+  checked_in_by INT NULL,
+  created_by INT NULL,
+  updated_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_bk_court FOREIGN KEY (court_id) REFERENCES courts(id),
+  CONSTRAINT fk_bk_customer FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_bk_cancelled FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_bk_checkin FOREIGN KEY (checked_in_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_bk_created FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_bk_updated FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_bk_date (`date`, court_id),
+  INDEX idx_bk_phone (customer_phone),
+  INDEX idx_bk_status (status, expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- BLOQUES OCUPADOS (RNF10) -------------------------------------------
+CREATE TABLE IF NOT EXISTS court_slots (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  court_id INT NOT NULL,
+  slot_date DATE NOT NULL,
+  slot_start TIME NOT NULL,
+  kind ENUM('reserva','bloqueo') NOT NULL,
+  booking_id INT NULL,
+  reason VARCHAR(255) NULL,
+  created_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_slot (court_id, slot_date, slot_start),
+  INDEX idx_slot_date (slot_date),
+  CONSTRAINT fk_slot_court FOREIGN KEY (court_id) REFERENCES courts(id),
+  CONSTRAINT fk_slot_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+  CONSTRAINT fk_slot_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- PAGOS (RF31-RF33) --------------------------------------------------
+CREATE TABLE IF NOT EXISTS payments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  booking_id INT NOT NULL,
+  kind ENUM('reserva','tiempo_adicional') NOT NULL DEFAULT 'reserva',
+  method ENUM('efectivo','transferencia') NOT NULL DEFAULT 'efectivo',
+  amount DECIMAL(10,0) NOT NULL,
+  extra_minutes INT NULL,
+  note VARCHAR(255) NULL,
+  paid_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by INT NULL,
+  INDEX idx_pay_date (paid_at),
+  CONSTRAINT fk_pay_booking FOREIGN KEY (booking_id) REFERENCES bookings(id),
+  CONSTRAINT fk_pay_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- AUDITORÍA (RF44, RNF15) --------------------------------------------
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  entity VARCHAR(30) NOT NULL,
+  entity_id INT NOT NULL,
+  action VARCHAR(40) NOT NULL,
+  user_id INT NULL,
+  detail JSON NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_audit_entity (entity, entity_id),
+  CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
