@@ -21,10 +21,6 @@ export const roleLabel = (role) =>
     cliente: "Cliente",
   })[role] ?? role;
 
-/**
- * ← NUEVO: etiqueta legible del estado de una reserva.
- * `en_curso` se muestra como "Vigente".
- */
 export const statusLabel = (status) =>
   ({
     procesando: "Procesando",
@@ -49,3 +45,36 @@ export const fmtDate = (date) => {
 };
 
 export const fmtTime = (t) => (t ? t.slice(0, 5) : "—");
+
+/**
+ * Formatea el `period` que devuelve /api/reports/income según el groupBy.
+ *   day   → "2026-11-02"    → "02/11/2026"
+ *   week  → "2026-W44"      → "Semana 44 / 2026"
+ *   month → "2026-11"       → "Nov 2026"
+ */
+const MESES = [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic",
+];
+export const fmtPeriod = (period, groupBy = "day") => {
+  if (!period) return "—";
+  if (groupBy === "month") {
+    const [y, m] = period.split("-");
+    return `${MESES[Number(m) - 1] ?? m} ${y}`;
+  }
+  if (groupBy === "week") {
+    const [y, w] = period.split("-");
+    return `Semana ${String(w).replace(/^W/i, "")} / ${y}`;
+  }
+  return fmtDate(period);
+};

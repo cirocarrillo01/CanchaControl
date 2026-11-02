@@ -8,6 +8,7 @@ import {
   addDays,
   addMinutes,
   diffSeconds,
+  fromMin,
   nowBogota,
   toMin,
 } from "../utils/time.js";
@@ -230,11 +231,7 @@ export const getBookingDetail = async (id, user) => {
   return b;
 };
 
-/**
- * ← NUEVO: /hoy devuelve end_time + effective_status calculados en tiempo real.
- * Una reserva 'ocupada' se convierte en 'en_curso' cuando pasa la hora de inicio
- * y en 'finalizada' cuando pasa la hora de fin + extras.
- */
+/** /hoy devuelve end_time + effective_status calculados en tiempo real. */
 export const getToday = async () => {
   const now = nowBogota();
   const today = now.date;
@@ -272,11 +269,6 @@ export const getToday = async () => {
 // ---------------------------------------------------------------------------
 // CRONÓMETROS
 // ---------------------------------------------------------------------------
-/**
- * ← NUEVO: filtra reservas ya expiradas. Solo muestra lo vigente o lo próximo.
- * El overtime ya no crece indefinidamente: al terminar, la reserva desaparece
- * (el job autoFinalize la pasa a 'finalizada' en la BD).
- */
 export const getTimers = async () => {
   const now = nowBogota();
   const today = now.date;
@@ -436,6 +428,27 @@ export const createBooking = async (data, user) => {
   const settings = await getSettings();
   const holidays = await loadHolidays();
   const block = resolveSpan(settings.block_minutes);
+
+  // ---------- Validar horario de servicio ----------
+  const startMin = toMin(start_time);
+  const openMin = toMin(settings.open_time);
+  const closeMin = toMin(settings.close_time);
+  const endMin = startMin + Number(duration_blocks) * block;
+
+  if (startMin < openMin || endMin > closeMin) {
+    throw new AppError(
+      400,
+      `Solo se puede reservar entre ${settings.open_time.slice(0, 5)} y ${settings.close_time.slice(0, 5)}`,
+    );
+  }
+  if ((startMin - openMin) % block !== 0) {
+    throw new AppError(
+      400,
+      `La hora debe estar alineada al bloque de ${block} minutos (ej. ${settings.open_time.slice(0, 5)}, ${fromMin(openMin + block)})`,
+    );
+  }
+  // ---------------------------------------------------
+
   if (isPast(date, start_time))
     throw new AppError(400, "No se puede reservar un horario pasado");
 
@@ -463,7 +476,7 @@ export const createBooking = async (data, user) => {
 
   return withTransaction(async (conn) => {
     const code = await uniqueCode(conn);
-    const priceTotal = price * duration_blocks;
+    const priceTotal = price * Number(duration_blocks);
 
     const [r] = await conn.query(
       `INSERT INTO bookings
@@ -486,13 +499,11 @@ export const createBooking = async (data, user) => {
     );
 
     const rows = [];
-    const startMin =
-      Number(start_time.split(":")[0]) * 60 + Number(start_time.split(":")[1]);
     for (let i = 0; i < duration_blocks; i++) {
       rows.push([
         court_id,
         date,
-        hhmmss(startMin + i * block),
+        fromMin(startMin + i * block),
         "reserva",
         r.insertId,
         null,
@@ -861,8 +872,11 @@ export const startTimer = async (id, { extra_minutes = 0 }, user) => {
         `No se puede iniciar cronómetro en estado ${booking.status}`,
       );
 
+    const settings = await getSettings();
+    const block = resolveSpan(settings.block_minutes);
+
     const start = nowBogota().datetime;
-    const totalMin = booking.duration_blocks * 60 + Number(extra_minutes);
+    const totalMin = booking.duration_blocks * block + Number(extra_minutes);
     const ends = addMinutes(start, totalMin);
 
     await conn.query(

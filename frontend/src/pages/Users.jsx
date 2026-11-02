@@ -21,11 +21,13 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { Add, Edit } from "@mui/icons-material";
+import { Add, Delete, Edit } from "@mui/icons-material";
 import API, { errMsg } from "../api/axios";
 import { useNotify } from "../context/NotifyContext";
+import { useAuth } from "../context/AuthContext";
 import { roleLabel } from "../utils/format";
 
 const ROLES = ["administrador", "cliente", "dueno", "vigilancia"];
@@ -40,19 +42,27 @@ const EMPTY = {
 
 export default function Users() {
   const notify = useNotify();
+  const { user: currentUser } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const r = await API.get("/users", { params: { page, limit: 20 } });
+      const params = { page, limit: 20 };
+      if (q && q.trim()) params.q = q.trim();
+      if (roleFilter !== "all") params.role = roleFilter;
+      const r = await API.get("/users", { params });
       setRows(r.data.data ?? []);
       setTotal(r.data.total ?? 0);
       setTotalPages(r.data.totalPages ?? 1);
@@ -61,7 +71,7 @@ export default function Users() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, q, roleFilter]);
 
   useEffect(() => {
     load();
@@ -85,6 +95,21 @@ export default function Users() {
     }
   };
 
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await API.delete(`/users/${confirmDelete.id}`);
+      notify("Usuario eliminado", "success");
+      setConfirmDelete(null);
+      load();
+    } catch (e) {
+      notify(errMsg(e), "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const setF = (k) => (e) =>
     setDialog({
       ...dialog,
@@ -96,10 +121,43 @@ export default function Users() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" mb={2}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        alignItems={{ sm: "center" }}
+        spacing={2}
+        mb={2}
+      >
         <Typography variant="h5" fontWeight={700} sx={{ flexGrow: 1 }}>
           Usuarios
         </Typography>
+        <TextField
+          size="small"
+          placeholder="Buscar nombre, email o teléfono"
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
+          sx={{ minWidth: 260 }}
+        />
+        <TextField
+          size="small"
+          select
+          label="Rol"
+          value={roleFilter}
+          onChange={(e) => {
+            setRoleFilter(e.target.value);
+            setPage(1);
+          }}
+          sx={{ minWidth: 170 }}
+        >
+          <MenuItem value="all">Todos</MenuItem>
+          {ROLES.map((r) => (
+            <MenuItem key={r} value={r}>
+              {roleLabel(r)}
+            </MenuItem>
+          ))}
+        </TextField>
         <Button
           startIcon={<Add />}
           variant="contained"
@@ -108,6 +166,7 @@ export default function Users() {
           Nuevo usuario
         </Button>
       </Stack>
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
@@ -124,26 +183,54 @@ export default function Users() {
               <TableCell>Teléfono</TableCell>
               <TableCell>Rol</TableCell>
               <TableCell>Activo</TableCell>
-              <TableCell />
+              <TableCell align="right">Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell>{u.name}</TableCell>
-                <TableCell>{u.email}</TableCell>
-                <TableCell>{u.phone ?? "—"}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={roleLabel(u.role)} />
-                </TableCell>
-                <TableCell>{u.active ? "✔" : "✘"}</TableCell>
-                <TableCell>
-                  <IconButton size="small" onClick={() => open("edit", u)}>
-                    <Edit fontSize="small" />
-                  </IconButton>
+            {rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} align="center">
+                  Sin resultados
                 </TableCell>
               </TableRow>
-            ))}
+            )}
+            {rows.map((u) => {
+              const isMe = u.id === currentUser?.id;
+              return (
+                <TableRow key={u.id}>
+                  <TableCell>{u.name}</TableCell>
+                  <TableCell>{u.email}</TableCell>
+                  <TableCell>{u.phone ?? "—"}</TableCell>
+                  <TableCell>
+                    <Chip size="small" label={roleLabel(u.role)} />
+                  </TableCell>
+                  <TableCell>{u.active ? "✔" : "✘"}</TableCell>
+                  <TableCell align="right">
+                    <IconButton size="small" onClick={() => open("edit", u)}>
+                      <Edit fontSize="small" />
+                    </IconButton>
+                    <Tooltip
+                      title={
+                        isMe
+                          ? "Usa 'Eliminar mi cuenta' en tu perfil"
+                          : "Eliminar cuenta"
+                      }
+                    >
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          disabled={isMe}
+                          onClick={() => setConfirmDelete(u)}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
@@ -215,6 +302,44 @@ export default function Users() {
           </DialogActions>
         </Dialog>
       )}
+
+      <Dialog
+        open={Boolean(confirmDelete)}
+        onClose={() => (deleting ? null : setConfirmDelete(null))}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Eliminar usuario</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            ¿Eliminar la cuenta de <b>{confirmDelete?.name}</b> (
+            {confirmDelete?.email})?
+          </Typography>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            mt={1}
+          >
+            El usuario no podrá volver a iniciar sesión. Sus reservas y pagos
+            históricos se conservarán de forma anónima.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDelete(null)} disabled={deleting}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={doDelete}
+            disabled={deleting}
+          >
+            {deleting ? "Eliminando…" : "Eliminar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {total > 0 && (
         <Box sx={{ mt: 3, display: "flex", justifyContent: "center" }}>
           <Pagination

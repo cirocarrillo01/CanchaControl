@@ -11,7 +11,7 @@ import {
 import { getSettings, loadHolidays } from "../services/schedule.service.js";
 import { logAction } from "../utils/audit.js";
 
-/** @route GET /api/courts · Público (las inactivas solo las ve el administrador). */
+/** @route GET /api/courts · Público */
 export const listCourts = asyncHandler(async (req, res) => {
   const isAdmin = req.user?.role === "administrador";
   const [rows] = await pool.query(
@@ -36,7 +36,7 @@ export const createCourt = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: { id: r.insertId, ...c } });
 });
 
-/** @route PUT /api/courts/:id · Administrador · RF06 (editar nombre/estado; nunca se borra para conservar el historial). */
+/** @route PUT /api/courts/:id · Administrador · RF06 */
 export const updateCourt = asyncHandler(async (req, res) => {
   const c = check(validateCourt(req.body));
   const [r] = await pool.query(
@@ -54,7 +54,35 @@ export const updateCourt = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { id: Number(req.params.id), ...c } });
 });
 
-/** @route GET /api/settings ·Público (el frontend necesita horario y duración del bloque). */
+/** @route DELETE /api/courts/:id · Administrador · RF06 */
+export const deleteCourt = asyncHandler(async (req, res) => {
+  const courtId = Number(req.params.id);
+  if (!courtId) throw new AppError(400, "ID inválido");
+
+  const [[{ count }]] = await pool.query(
+    "SELECT COUNT(*) AS count FROM bookings WHERE court_id = ?",
+    [courtId],
+  );
+  if (Number(count) > 0) {
+    throw new AppError(
+      409,
+      "La cancha tiene reservas históricas; cámbiala a 'inactiva' en lugar de eliminarla.",
+    );
+  }
+
+  const [r] = await pool.query("DELETE FROM courts WHERE id = ?", [courtId]);
+  if (!r.affectedRows) throw new AppError(404, "Cancha no encontrada");
+
+  await logAction(pool, {
+    entity: "court",
+    entityId: courtId,
+    action: "eliminada",
+    userId: req.user.id,
+  });
+  res.json({ success: true });
+});
+
+/** @route GET /api/settings · Público */
 export const readSettings = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await getSettings() });
 });
@@ -68,10 +96,17 @@ export const updateSettings = asyncHandler(async (req, res) => {
       [key, String(value)],
     );
   }
+  await logAction(pool, {
+    entity: "settings",
+    entityId: null,
+    action: "actualizada",
+    userId: req.user.id,
+    detail: s,
+  });
   res.json({ success: true, data: await getSettings() });
 });
 
-/** @route GET /api/rates · Administrador y dueño · RF08 */
+/** @route GET /api/rates */
 export const listRates = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
     "SELECT r.*, c.name AS court_name FROM rates r LEFT JOIN courts c ON c.id = r.court_id ORDER BY r.day_type, r.start_time, c.name",
@@ -79,7 +114,6 @@ export const listRates = asyncHandler(async (req, res) => {
   res.json({ success: true, data: rows });
 });
 
-/** @route POST /api/rates · Administrador · RF08 */
 export const createRate = asyncHandler(async (req, res) => {
   const r = check(validateRate(req.body));
   const [ins] = await pool.query(
@@ -89,7 +123,6 @@ export const createRate = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: { id: ins.insertId, ...r } });
 });
 
-/** @route PUT /api/rates/:id · Administrador · RF08 (no afecta reservas ya creadas: guardan su precio). */
 export const updateRate = asyncHandler(async (req, res) => {
   const r = check(validateRate(req.body));
   const [u] = await pool.query(
@@ -100,7 +133,6 @@ export const updateRate = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { id: Number(req.params.id), ...r } });
 });
 
-/** @route DELETE /api/rates/:id ·Administrador */
 export const deleteRate = asyncHandler(async (req, res) => {
   const [d] = await pool.query("DELETE FROM rates WHERE id = ?", [
     req.params.id,
@@ -109,7 +141,6 @@ export const deleteRate = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-/** @route GET /api/holidays · Público · Lista de días festivos. */
 export const listHolidays = asyncHandler(async (req, res) => {
   const holidays = await loadHolidays();
   const [rows] = await pool.query(
@@ -118,7 +149,6 @@ export const listHolidays = asyncHandler(async (req, res) => {
   res.json({ success: true, data: rows });
 });
 
-/** @route POST /api/holidays · Administrador · Agregar un día festivo. */
 export const createHoliday = asyncHandler(async (req, res) => {
   const h = check(validateHoliday(req.body));
   const [r] = await pool.query(
@@ -135,7 +165,6 @@ export const createHoliday = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: { id: r.insertId, ...h } });
 });
 
-/** @route DELETE /api/holidays/:id · Administrador · Eliminar un día festivo. */
 export const deleteHoliday = asyncHandler(async (req, res) => {
   const [d] = await pool.query("DELETE FROM holidays WHERE id = ?", [
     req.params.id,

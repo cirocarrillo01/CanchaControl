@@ -52,14 +52,15 @@ const PAY_COLOR = {
   pagado: "success",
 };
 
-const FILTERS = [
-  "procesando",
-  "ocupada",
-  "en_curso",
-  "finalizada",
-  "cancelada",
-  "vencida",
-  "",
+// Sentinel explícito "all" — nunca choca con un estado real
+const FILTER_OPTIONS = [
+  { value: "all", label: "Todos" },
+  { value: "procesando", label: "Procesando" },
+  { value: "ocupada", label: "Ocupada" },
+  { value: "en_curso", label: "Vigente" },
+  { value: "finalizada", label: "Finalizada" },
+  { value: "cancelada", label: "Cancelada" },
+  { value: "vencida", label: "Vencida" },
 ];
 
 export default function Bookings() {
@@ -74,20 +75,17 @@ export default function Bookings() {
   const [total, setTotal] = useState(0);
   const [menu, setMenu] = useState({ anchor: null, booking: null });
 
-  // ---- Modal pago ----
   const [payOpen, setPayOpen] = useState(false);
   const [payBooking, setPayBooking] = useState(null);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("efectivo");
   const [payBusy, setPayBusy] = useState(false);
 
-  // ---- Modal cancelar ----
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBooking, setCancelBooking] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelBusy, setCancelBusy] = useState(false);
 
-  // ---- Modal reprogramar ----
   const [reschedOpen, setReschedOpen] = useState(false);
   const [reschedBooking, setReschedBooking] = useState(null);
   const [reschedDate, setReschedDate] = useState("");
@@ -99,7 +97,7 @@ export default function Bookings() {
     setError("");
     try {
       const params = { page, limit: 20 };
-      if (status) params.status = status;
+      if (status && status !== "all") params.status = status;
       if (q) params.q = q;
       const r = await API.get("/bookings", { params });
       setRows(r.data.data ?? []);
@@ -221,7 +219,6 @@ export default function Bookings() {
         return;
       }
     }
-
     setReschedBusy(true);
     try {
       await API.post(`/bookings/${reschedBooking.id}/reschedule`, {
@@ -260,11 +257,11 @@ export default function Bookings() {
             setPage(1);
           }}
           label="Estado"
-          sx={{ minWidth: 160 }}
+          sx={{ minWidth: 180 }}
         >
-          {FILTERS.map((s) => (
-            <MenuItem key={s || "all"} value={s}>
-              {s ? statusLabel(s) : "Todos"}
+          {FILTER_OPTIONS.map((o) => (
+            <MenuItem key={o.value} value={o.value}>
+              {o.label}
             </MenuItem>
           ))}
         </TextField>
@@ -276,6 +273,7 @@ export default function Bookings() {
             setQ(e.target.value);
             setPage(1);
           }}
+          sx={{ minWidth: 260 }}
         />
       </Stack>
 
@@ -508,7 +506,7 @@ export default function Bookings() {
               Reserva <b>{cancelBooking?.code}</b> · {cancelBooking?.court_name}
             </Typography>
             <Typography variant="body2">
-              Fecha: <b>{cancelBooking ? fmtDate(cancelBooking.date) : ""}</b> ·{" "}
+              Fecha: <b>{cancelBooking ? fmtDate(cancelBooking.date) : ""}</b> ·
               Hora:{" "}
               <b>{cancelBooking ? fmtTime(cancelBooking.start_time) : ""}</b>
             </Typography>
@@ -577,8 +575,7 @@ export default function Bookings() {
               fullWidth
             />
             <Typography variant="caption" color="text.secondary">
-              El precio, la duración y los pagos se conservan. No se permiten
-              fechas ni horas pasadas.
+              El precio, la duración y los pagos se conservan.
             </Typography>
           </Stack>
         </DialogContent>

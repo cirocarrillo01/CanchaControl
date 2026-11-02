@@ -69,30 +69,50 @@ export const loadHolidays = async (db = pool) => {
   return rows.map((r) => r.holiday_date);
 };
 
+/**
+ * Vence reservas "procesando" cuando:
+ *  (a) el hold de pago expiró (`expires_at < now`),
+ *  (b) la fecha del bloque ya pasó,
+ *  (c) es hoy y la hora de inicio ya pasó.
+ * Así ninguna reserva queda "procesando" indefinidamente, ni siquiera
+ * las creadas por el administrador (que no tienen expires_at).
+ */
 export const expireStale = async () => {
-  const now = nowBogota().datetime;
+  const now = nowBogota();
+
   const [rows] = await pool.query(
-    "SELECT id FROM bookings WHERE status = 'procesando' AND expires_at IS NOT NULL AND expires_at < ?",
-    [now],
+    `SELECT id, date, start_time, expires_at
+       FROM bookings
+      WHERE status = 'procesando'
+        AND (
+          (expires_at IS NOT NULL AND expires_at < ?)
+          OR date < ?
+          OR (date = ? AND start_time <= ?)
+        )`,
+    [now.datetime, now.date, now.date, now.time],
   );
-  for (const { id } of rows) {
+
+  for (const b of rows) {
     await withTransaction(async (conn) => {
-      await conn.query("DELETE FROM court_slots WHERE booking_id = ?", [id]);
+      await conn.query("DELETE FROM court_slots WHERE booking_id = ?", [b.id]);
       await conn.query(
         "UPDATE bookings SET status = 'vencida' WHERE id = ? AND status = 'procesando'",
-        [id],
+        [b.id],
       );
       await logAction(conn, {
         entity: "booking",
-        entityId: id,
+        entityId: b.id,
         action: "vencida",
+        detail: {
+          reason: b.expires_at ? "hold_expirado" : "hora_inicio_pasada",
+        },
       });
     });
   }
 };
 
 /**
- * ← NUEVO: Auto-finaliza reservas cuyo bloque + extras ya terminó.
+ * Auto-finaliza reservas cuyo bloque + extras ya terminó.
  * Corre cada minuto desde server.js. Cambia status 'ocupada'/'en_curso' → 'finalizada'
  * cuando la hora real supera el fin calculado (start + duration_blocks*block_minutes + extra_minutes).
  */
@@ -160,6 +180,7 @@ export const getAvailability = async ({ date, courtId, viewer }) => {
 
   const [slots] = await pool.query(
     `SELECT s.id AS slot_id, s.court_id, s.slot_start, s.kind AS slot_kind,
+            s.reason AS slot_reason,
             b.id AS booking_id, b.status AS booking_status
        FROM court_slots s LEFT JOIN bookings b ON b.id = s.booking_id
       WHERE s.slot_date = ?`,
@@ -178,6 +199,8 @@ export const getAvailability = async ({ date, courtId, viewer }) => {
         status: "disponible",
         price: priceFor(rates, court.id, date, b.start, holidays),
         festivo: isFestivo,
+        slot_id: slot?.slot_id ?? null,
+        reason: slot?.slot_reason ?? null,
       };
       if (block.past) block.status = "pasado";
       if (!slot) return block;
@@ -186,12 +209,6 @@ export const getAvailability = async ({ date, courtId, viewer }) => {
         block.status = "bloqueado";
       } else if (slot.booking_status === "procesando") {
         block.status = "procesando";
-      } else if (
-        slot.booking_status === "ocupada" ||
-        slot.booking_status === "en_curso" ||
-        slot.booking_status === "finalizada"
-      ) {
-        block.status = "ocupado";
       } else {
         block.status = "ocupado";
       }

@@ -13,6 +13,7 @@ const admin = [protect, authorize("administrador")];
 router.get("/courts", optionalAuth, c.listCourts); // Público
 router.post("/courts", ...admin, c.createCourt);
 router.put("/courts/:id", ...admin, c.updateCourt);
+router.delete("/courts/:id", ...admin, c.deleteCourt);
 
 router.get("/settings", c.readSettings); // Público
 router.put("/settings", ...admin, c.updateSettings);

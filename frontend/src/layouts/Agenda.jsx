@@ -22,8 +22,6 @@ import { useAuth } from "../context/AuthContext";
 import { useNotify } from "../context/NotifyContext";
 import { fmtMoney, fmtTime } from "../utils/format";
 
-// ← FIX: usa zona horaria Bogotá para que el calendario no cambie de día
-//         a las 23:00 (antes usaba toISOString() que es UTC).
 const today = () => {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Bogota",
@@ -35,11 +33,11 @@ const today = () => {
 };
 
 const STYLES = {
-  disponible: { bg: "#C8E6C9", fg: "#1B5E20", bd: "#4CAF50" }, // verde
-  procesando: { bg: "#FFF9C4", fg: "#E65100", bd: "#FBC02D" }, // amarillo
-  ocupado: { bg: "#FFCDD2", fg: "#B71C1C", bd: "#E53935" }, // rojo
-  bloqueado: { bg: "#E0E0E0", fg: "#424242", bd: "#9E9E9E" }, // gris (mantenimiento)
-  pasado: { bg: "#F5F5F5", fg: "#9E9E9E", bd: "#E0E0E0" }, // gris claro
+  disponible: { bg: "#C8E6C9", fg: "#1B5E20", bd: "#4CAF50" },
+  procesando: { bg: "#FFF9C4", fg: "#E65100", bd: "#FBC02D" },
+  ocupado: { bg: "#FFCDD2", fg: "#B71C1C", bd: "#E53935" },
+  bloqueado: { bg: "#E0E0E0", fg: "#424242", bd: "#9E9E9E" },
+  pasado: { bg: "#F5F5F5", fg: "#9E9E9E", bd: "#E0E0E0" },
 };
 
 const statusLabel = (s) =>
@@ -194,13 +192,17 @@ export default function Agenda() {
 function BookDialog({ picker, date, onClose, onDone, user }) {
   const notify = useNotify();
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState("book"); // "book" | "block"
   const [customerName, setCustomerName] = useState(user?.name || "");
   const [customerPhone, setCustomerPhone] = useState(user?.phone || "");
+  const [reason, setReason] = useState("Mantenimiento");
 
   useEffect(() => {
     setBusy(false);
+    setMode("book");
     setCustomerName(user?.name || "");
     setCustomerPhone(user?.phone || "");
+    setReason("Mantenimiento");
   }, [picker, user]);
 
   if (!picker) return null;
@@ -229,7 +231,7 @@ function BookDialog({ picker, date, onClose, onDone, user }) {
         );
       } else {
         notify(
-          "Reserva solicitada. Queda en estado procesando hasta que el administrador la apruebe.",
+          "Reserva solicitada. Queda en procesando hasta que el administrador la apruebe.",
           "success",
         );
       }
@@ -241,56 +243,29 @@ function BookDialog({ picker, date, onClose, onDone, user }) {
     }
   };
 
-  if (isAdmin) {
-    return (
-      <Dialog open onClose={onClose} fullWidth maxWidth="xs">
-        <DialogTitle>Reservar {court.name}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} mt={1}>
-            <Typography>
-              Fecha: <b>{date}</b> · Hora:{" "}
-              <b>
-                {fmtTime(block.start)} – {fmtTime(block.end)}
-              </b>
-            </Typography>
-            <Typography>
-              Valor: <b>{fmtMoney(block.price)}</b>
-            </Typography>
-            <TextField
-              label="Nombre del cliente"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Teléfono del cliente"
-              type="tel"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              fullWidth
-            />
-            <Typography variant="caption" color="text.secondary">
-              Se creará en estado <b>procesando</b> (amarillo). En "Reservas"
-              registras el pago y la apruebas para que pase a <b>ocupada</b>{" "}
-              (rojo).
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={busy}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={book} disabled={busy}>
-            {busy ? "Creando…" : "Crear reserva"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    );
-  }
+  const blockSlot = async () => {
+    setBusy(true);
+    try {
+      await API.post("/blocks", {
+        court_id: court.id,
+        date,
+        start_time: block.start,
+        reason: reason || "Mantenimiento",
+      });
+      notify("Horario bloqueado por mantenimiento", "success");
+      onDone();
+    } catch (e) {
+      notify(errMsg(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Reservar {court.name}</DialogTitle>
+      <DialogTitle>
+        {mode === "block" ? `Bloquear ${court.name}` : `Reservar ${court.name}`}
+      </DialogTitle>
       <DialogContent>
         <Stack spacing={2} mt={1}>
           <Typography>
@@ -302,26 +277,84 @@ function BookDialog({ picker, date, onClose, onDone, user }) {
           <Typography>
             Valor: <b>{fmtMoney(block.price)}</b>
           </Typography>
-          <Typography>
-            Cliente: <b>{customerName}</b>
-          </Typography>
-          <Typography>
-            Teléfono: <b>{customerPhone}</b>
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Tu reserva quedará en estado <b>procesando</b> (amarillo) hasta que
-            el administrador la apruebe. Al aprobarla se marcará como{" "}
-            <b>ocupada</b> (rojo).
-          </Typography>
+
+          {isAdmin && mode === "book" && (
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              onClick={() => setMode("block")}
+            >
+              Cambiar a "Bloquear por mantenimiento"
+            </Button>
+          )}
+
+          {mode === "book" && (
+            <>
+              <TextField
+                label="Nombre del cliente"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Teléfono del cliente"
+                type="tel"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                fullWidth
+              />
+              <Typography variant="caption" color="text.secondary">
+                Quedará en <b>procesando</b>. En "Reservas" registras el pago y
+                la apruebas para que pase a <b>ocupada</b>.
+              </Typography>
+            </>
+          )}
+
+          {mode === "block" && (
+            <>
+              <TextField
+                label="Motivo del bloqueo"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                fullWidth
+                multiline
+                minRows={2}
+              />
+              <Typography variant="caption" color="text.secondary">
+                El bloque aparecerá como <b>Mantenimiento</b> en gris y no se
+                podrá reservar hasta que se desbloquee desde Configuración →
+                Bloqueos.
+              </Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setMode("book")}
+              >
+                Volver a "Reservar"
+              </Button>
+            </>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={busy}>
           Cancelar
         </Button>
-        <Button variant="contained" onClick={book} disabled={busy}>
-          {busy ? "Solicitando…" : "Solicitar reserva"}
-        </Button>
+        {mode === "book" ? (
+          <Button variant="contained" onClick={book} disabled={busy}>
+            {busy ? "Creando…" : "Crear reserva"}
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={blockSlot}
+            disabled={busy}
+          >
+            {busy ? "Bloqueando…" : "Bloquear horario"}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

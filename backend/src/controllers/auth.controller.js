@@ -17,10 +17,9 @@ const publicUser = (u) => ({
   role: u.role,
 });
 
-/** POST /api/auth/register · Público · RF05: solo crea clientes (el rol nunca viene del body). */
+/** POST /api/auth/register · Público · RF05 */
 export const register = asyncHandler(async (req, res) => {
   const data = check(validateRegister(req.body));
-  // Ya sabemos que accept_terms === true porque el validador lo exige:
   const user = await User.create({
     ...data,
     role: "cliente",
@@ -33,7 +32,7 @@ export const register = asyncHandler(async (req, res) => {
   });
 });
 
-/** POST /api/auth/login · Público · RF01 + RNF06 (bloqueo tras 5 intentos fallidos). */
+/** POST /api/auth/login · Público · RF01 + RNF06 */
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body || {};
   const data = check(validateLogin({ email, password }));
@@ -74,14 +73,40 @@ export const login = asyncHandler(async (req, res) => {
   });
 });
 
-/** GET /api/auth/me · Privado: devuelve el usuario de la sesión. */
+/** GET /api/auth/me · Privado */
 export const getMe = asyncHandler(async (req, res) => {
   res.json({ success: true, user: publicUser(req.user) });
 });
 
-/** PUT /api/auth/password · Privado · RF03. */
+/** PUT /api/auth/password · Privado · RF03 */
 export const changePassword = asyncHandler(async (req, res) => {
   const { current, next } = check(validatePasswordChange(req.body));
   await User.changePassword(req.user.id, current, next);
   res.json({ success: true, message: "Contraseña actualizada" });
+});
+
+/** DELETE /api/auth/me · Privado · Autocierre de cuenta (cliente y admin) */
+export const deleteMe = asyncHandler(async (req, res) => {
+  const { id, role } = req.user;
+
+  if (role === "administrador") {
+    const admins = await User.countActiveAdmins();
+    if (admins <= 1)
+      throw new AppError(
+        409,
+        "No puedes eliminar tu cuenta: eres el único administrador activo. Crea otro admin primero.",
+      );
+  }
+
+  if (role === "cliente") {
+    const pending = await User.countActiveBookings(id);
+    if (pending > 0)
+      throw new AppError(
+        409,
+        "Tienes reservas activas o pendientes. Cancélalas antes de eliminar tu cuenta.",
+      );
+  }
+
+  await User.anonymize(id);
+  res.json({ success: true, message: "Cuenta eliminada" });
 });

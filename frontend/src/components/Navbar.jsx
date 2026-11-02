@@ -4,19 +4,15 @@ import {
   Avatar,
   Box,
   IconButton,
-  Menu,
-  MenuItem,
   Toolbar,
   Typography,
 } from "@mui/material";
-import { Logout, Menu as MenuIcon } from "@mui/icons-material";
-import { useState } from "react";
+import { Menu as MenuIcon } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
 import { roleLabel } from "../utils/format";
 
 export default function Navbar({ onMenu, drawerWidth }) {
-  const { user, logout } = useAuth();
-  const [anchor, setAnchor] = useState(null);
+  const { user } = useAuth();
 
   return (
     <AppBar
@@ -46,26 +42,7 @@ export default function Navbar({ onMenu, drawerWidth }) {
             >
               {user.name} · {roleLabel(user.role)}
             </Typography>
-            <IconButton
-              color="inherit"
-              onClick={(e) => setAnchor(e.currentTarget)}
-            >
-              <Avatar sx={{ width: 32, height: 32 }}>{user.name?.[0]}</Avatar>
-            </IconButton>
-            <Menu
-              anchorEl={anchor}
-              open={Boolean(anchor)}
-              onClose={() => setAnchor(null)}
-            >
-              <MenuItem
-                onClick={() => {
-                  setAnchor(null);
-                  logout();
-                }}
-              >
-                <Logout fontSize="small" sx={{ mr: 1 }} /> Cerrar sesión
-              </MenuItem>
-            </Menu>
+            <Avatar sx={{ width: 32, height: 32 }}>{user.name?.[0]}</Avatar>
           </Box>
         )}
       </Toolbar>

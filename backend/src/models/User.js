@@ -8,9 +8,7 @@ import { MAX_LOGIN_ATTEMPTS, LOCK_MINUTES } from "../config/constants.js";
 
 const PUBLIC_FIELDS = "id, name, email, phone, role, active, created_at";
 
-/** Modelo de Usuario: encapsula todas las consultas SQL de la tabla users. */
 export const User = {
-  /** RF05 / RF04: crea un usuario (los clientes se auto-registran; el admin crea cualquier rol). */
   async create({
     name,
     email,
@@ -26,7 +24,7 @@ export const User = {
     if (existing.length > 0)
       throw new AppError(409, "El email ya está registrado");
 
-    const hash = await bcrypt.hash(password, 10); // RNF05: nunca se guarda en texto plano
+    const hash = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
       "INSERT INTO users (name, email, phone, password, role, terms_accepted_at) VALUES (?, ?, ?, ?, ?, ?)",
       [
@@ -41,7 +39,6 @@ export const User = {
     return this.findById(result.insertId);
   },
 
-  /** Incluye hash y contadores de bloqueo; solo para el login. */
   async findByEmail(email) {
     const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [
       email,
@@ -57,17 +54,46 @@ export const User = {
     return rows[0] || null;
   },
 
-  async findAll({ page = 1, limit = 50 } = {}) {
-    const p = Math.max(1, page);
-    const l = Math.min(100, Math.max(1, limit));
+  async findAll({ page = 1, limit = 50, q = "", role = "" } = {}) {
+    const p = Math.max(1, Number(page) || 1);
+    const l = Math.min(100, Math.max(1, Number(limit) || 50));
     const offset = (p - 1) * l;
+
+    const where = [];
+    const params = [];
+
+    if (q && String(q).trim()) {
+      where.push("(name LIKE ? OR email LIKE ? OR phone LIKE ?)");
+      const like = `%${String(q).trim()}%`;
+      params.push(like, like, like);
+    }
+    if (role && String(role).trim()) {
+      where.push("role = ?");
+      params.push(String(role).trim());
+    }
+
+    const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+
     const [rows] = await pool.query(
-      `SELECT ${PUBLIC_FIELDS} FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [l, offset],
+      `SELECT ${PUBLIC_FIELDS} FROM users${whereSql}
+       ORDER BY
+         CASE role
+           WHEN 'administrador' THEN 1
+           WHEN 'dueno' THEN 2
+           WHEN 'vigilancia' THEN 3
+           WHEN 'cliente' THEN 4
+           ELSE 5
+         END,
+         created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, l, offset],
     );
+
     const [[{ total }]] = await pool.query(
-      "SELECT COUNT(*) AS total FROM users",
+      `SELECT COUNT(*) AS total FROM users${whereSql}`,
+      params,
     );
+
     return {
       data: rows,
       total: Number(total),
@@ -77,7 +103,6 @@ export const User = {
     };
   },
 
-  /** RF04: edita datos/rol y permite desactivar sin borrar el historial. */
   async update(id, { name, phone, role, active }) {
     const [dup] = await pool.query("SELECT id FROM users WHERE id = ?", [id]);
     if (!dup.length) throw new AppError(404, "Usuario no encontrado");
@@ -88,7 +113,6 @@ export const User = {
     return this.findById(id);
   },
 
-  /** RF03: cambio de contraseña (verifica la actual antes). */
   async changePassword(id, currentPassword, newPassword) {
     const [rows] = await pool.query("SELECT password FROM users WHERE id = ?", [
       id,
@@ -105,11 +129,53 @@ export const User = {
     ]);
   },
 
-  /** RNF06: ¿la cuenta está bloqueada temporalmente? */
+  /** Cuenta cuántos administradores activos hay (para no dejar el sistema sin admin). */
+  async countActiveAdmins() {
+    const [[{ n }]] = await pool.query(
+      "SELECT COUNT(*) AS n FROM users WHERE role = 'administrador' AND active = 1",
+    );
+    return Number(n);
+  },
+
+  /** Reservas del cliente que impiden borrar su cuenta (activas o pendientes). */
+  async countActiveBookings(id) {
+    const [[{ n }]] = await pool.query(
+      `SELECT COUNT(*) AS n FROM bookings
+        WHERE customer_id = ?
+          AND status IN ('procesando','ocupada','en_curso')`,
+      [id],
+    );
+    return Number(n);
+  },
+
+  /**
+   * Eliminación suave:
+   *  - bloquea el login (active = 0)
+   *  - libera el email (lo reemplaza por uno sintético único)
+   *  - borra PII (nombre y teléfono)
+   *  - invalida el hash de la contraseña
+   * Mantiene el `id` para no romper FKs de reservas/pagos históricos.
+   */
+  async anonymize(id) {
+    const stamp = Date.now();
+    const scrambled = await bcrypt.hash(`deleted-${id}-${stamp}`, 10);
+    await pool.query(
+      `UPDATE users
+         SET active = 0,
+             name = 'Cuenta eliminada',
+             email = CONCAT('deleted_', id, '_', ?, '@deleted.local'),
+             phone = NULL,
+             password = ?,
+             failed_attempts = 0,
+             locked_until = NULL
+       WHERE id = ?`,
+      [stamp, scrambled, id],
+    );
+  },
+
   isLocked: (user) =>
     Boolean(user.locked_until && user.locked_until > nowBogota().datetime),
 
-  /** RNF06: cuenta intentos fallidos y bloquea al llegar al máximo. */
   async registerFailure(user) {
     const attempts = user.failed_attempts + 1;
     if (attempts >= MAX_LOGIN_ATTEMPTS) {

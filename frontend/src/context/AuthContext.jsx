@@ -28,7 +28,6 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  // Al cargar la app: si hay token, se pide el usuario al backend (alimenta la barra superior).
   useEffect(() => {
     if (!localStorage.getItem("token")) return;
     API.get("/auth/me")
@@ -37,7 +36,6 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Token vencido detectado por el interceptor de axios.
   useEffect(() => {
     const onExpired = () => {
       setUser(null);
@@ -47,7 +45,6 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener("auth:expired", onExpired);
   }, [notify]);
 
-  // Cierre por inactividad (RNF06): cualquier interacción reinicia el temporizador.
   useEffect(() => {
     if (!user) return undefined;
     const reset = () => {
@@ -74,10 +71,17 @@ export function AuthProvider({ children }) {
     return res.data.user;
   };
 
+  /** Elimina la cuenta propia y cierra sesión. */
+  const deleteAccount = async () => {
+    await API.delete("/auth/me");
+    logout();
+  };
+
   const value = {
     user,
     loading,
     logout,
+    deleteAccount,
     login: (email, password) =>
       authenticate("/auth/login", { email, password }),
     register: (form) => authenticate("/auth/register", form),
