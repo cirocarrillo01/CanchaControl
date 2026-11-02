@@ -22,10 +22,18 @@ import { useAuth } from "../context/AuthContext";
 import { useNotify } from "../context/NotifyContext";
 import { fmtMoney, fmtTime } from "../utils/format";
 
-const today = () => new Date().toISOString().slice(0, 10);
+// ← FIX: usa zona horaria Bogotá para que el calendario no cambie de día
+//         a las 23:00 (antes usaba toISOString() que es UTC).
+const today = () => {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(new Date());
+};
 
-// ← FIX: colores explícitos aplicados vía sx para que se vean incluso
-//         cuando el ToggleButton está deshabilitado (MUI ignora `color` ahí).
 const STYLES = {
   disponible: { bg: "#C8E6C9", fg: "#1B5E20", bd: "#4CAF50" }, // verde
   procesando: { bg: "#FFF9C4", fg: "#E65100", bd: "#FBC02D" }, // amarillo
@@ -141,8 +149,6 @@ export default function Agenda() {
                               bgcolor: c.bg,
                               color: c.fg,
                               "&:hover": { bgcolor: c.bg },
-                              // ← clave: MUI aplica opacidad/tono de disabled;
-                              //   lo sobrescribimos para mantener el color real.
                               "&.Mui-disabled": {
                                 bgcolor: c.bg,
                                 color: c.fg,

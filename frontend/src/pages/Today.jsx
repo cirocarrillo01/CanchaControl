@@ -16,7 +16,7 @@ import {
 } from "@mui/material";
 import API, { errMsg } from "../api/axios";
 import { useNotify } from "../context/NotifyContext";
-import { fmtMoney, fmtTime } from "../utils/format";
+import { fmtMoney, fmtTime, statusLabel } from "../utils/format";
 
 const STATUS_COLOR = {
   procesando: "warning",
@@ -48,6 +48,9 @@ export default function Today() {
 
   useEffect(() => {
     load();
+    // Refresco automático cada 30s para ver cambios de estado sin pulsar
+    const i = setInterval(load, 30_000);
+    return () => clearInterval(i);
   }, [load]);
 
   const checkIn = async (b) => {
@@ -79,7 +82,7 @@ export default function Today() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Hora</TableCell>
+              <TableCell>Bloque</TableCell>
               <TableCell>Cancha</TableCell>
               <TableCell>Código</TableCell>
               <TableCell>Cliente</TableCell>
@@ -97,39 +100,47 @@ export default function Today() {
                 </TableCell>
               </TableRow>
             )}
-            {rows.map((b) => (
-              <TableRow key={b.id}>
-                <TableCell>{fmtTime(b.start_time)}</TableCell>
-                <TableCell>{b.court_name}</TableCell>
-                <TableCell>
-                  <b>{b.code}</b>
-                </TableCell>
-                <TableCell>
-                  {b.customer_name}
-                  {b.customer_phone && (
-                    <Typography
-                      variant="caption"
-                      display="block"
-                      color="text.secondary"
-                    >
-                      {b.customer_phone}
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    size="small"
-                    label={b.status}
-                    color={STATUS_COLOR[b.status] ?? "default"}
-                  />
-                </TableCell>
-                <TableCell>
-                  {b.checked_in_at ? "✔ " + b.checked_in_at.slice(11, 16) : "—"}
-                </TableCell>
-                <TableCell align="right">{fmtMoney(b.price_total)}</TableCell>
-                <TableCell>
-                  {!b.checked_in_at &&
-                    ["procesando", "ocupada"].includes(b.status) && (
+            {rows.map((b) => {
+              const st = b.effective_status ?? b.status;
+              const endLabel = b.end_time ? fmtTime(b.end_time) : "—";
+              const canCheckIn =
+                !b.checked_in_at && ["ocupada", "en_curso"].includes(st);
+              return (
+                <TableRow key={b.id}>
+                  <TableCell>
+                    <b>{fmtTime(b.start_time)}</b> – {endLabel}
+                  </TableCell>
+                  <TableCell>{b.court_name}</TableCell>
+                  <TableCell>
+                    <b>{b.code}</b>
+                  </TableCell>
+                  <TableCell>
+                    {b.customer_name}
+                    {b.customer_phone && (
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        color="text.secondary"
+                      >
+                        {b.customer_phone}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={statusLabel(st)}
+                      color={STATUS_COLOR[st] ?? "default"}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {b.checked_in_at
+                      ? "✔ " + b.checked_in_at.slice(11, 16)
+                      : "—"}
+                  </TableCell>
+                  <TableCell align="right">{fmtMoney(b.price_total)}</TableCell>
+                  <TableCell>
+                    {canCheckIn && (
                       <Button
                         size="small"
                         variant="contained"
@@ -138,9 +149,10 @@ export default function Today() {
                         Marcar ingreso
                       </Button>
                     )}
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}

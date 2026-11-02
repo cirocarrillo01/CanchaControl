@@ -9,7 +9,7 @@ import configRoutes from "./routes/config.routes.js";
 import bookingRoutes from "./routes/booking.routes.js";
 import reportRoutes from "./routes/report.routes.js";
 import { errorHandler, notFound } from "./middlewares/error.middleware.js";
-import { expireStale } from "./services/schedule.service.js";
+import { expireStale, autoFinalize } from "./services/schedule.service.js";
 import { nowBogota } from "./utils/time.js";
 
 if (!process.env.JWT_SECRET) {
@@ -41,28 +41,26 @@ if (process.env.ALLOWED_FRONTEND_URLS) {
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
-// Logging de peticiones en desarrollo para diagnosticar 403/401
 if (process.env.NODE_ENV === "development") {
   app.use((req, res, next) => {
-    const auth = req.headers.authorization ? `Bearer ${req.headers.authorization.split(" ")[1]?.slice(0, 20)}...` : "sin-token";
+    const auth = req.headers.authorization
+      ? `Bearer ${req.headers.authorization.split(" ")[1]?.slice(0, 20)}...`
+      : "sin-token";
     console.log(`[HTTP] ${req.method} ${req.originalUrl} auth=${auth}`);
     next();
   });
 }
 
-// Header de versión para verificar que se ejecuta el código nuevo
 app.use((req, res, next) => {
   res.setHeader("X-API-Version", "2.1.0-client-booking-fixed");
   next();
 });
 
-// Montaje limpio: TODO bajo /api para que axios (baseURL .../api) coincida.
-// bookingRoutes va ANTES que configRoutes y reportRoutes para tener prioridad.
-app.use("/api/auth", authRoutes);        // /api/auth/*
-app.use("/api/users", userRoutes);       // /api/users, /api/users/:id
-app.use("/api", bookingRoutes);          // /api/availability, /api/bookings, /api/blocks (PRIORIDAD)
-app.use("/api", configRoutes);           // /api/courts, /api/settings, /api/rates
-app.use("/api", reportRoutes);           // /api/reports/*
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api", bookingRoutes);
+app.use("/api", configRoutes);
+app.use("/api", reportRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -78,11 +76,21 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     await testConnection();
+
+    // Vencimiento de reservas en línea (RF29)
     setInterval(
       () =>
         expireStale().catch((e) => console.error("expireStale:", e.message)),
       60_000,
     );
+
+    // ← NUEVO: auto-finalizar reservas cuyo tiempo ya terminó
+    setInterval(
+      () =>
+        autoFinalize().catch((e) => console.error("autoFinalize:", e.message)),
+      60_000,
+    );
+
     app.listen(PORT, () =>
       console.log(`🚀 Backend en http://localhost:${PORT}`),
     );

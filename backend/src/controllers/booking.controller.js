@@ -26,7 +26,6 @@ export const list = asyncHandler(async (req, res) => {
   res.json({ success: true, ...data });
 });
 
-// Cliente ve solo sus propias reservas (ruta dedicada /bookings/mis-reservas)
 export const listClientBookings = asyncHandler(async (req, res) => {
   const data = await svc.listBookings({
     user: req.user,
@@ -41,7 +40,6 @@ export const listClientBookings = asyncHandler(async (req, res) => {
   res.json({ success: true, ...data });
 });
 
-// Admin y dueño ven todas las reservas (ruta /bookings)
 export const listBookingsAll = asyncHandler(async (req, res) => {
   const data = await svc.listBookings({
     user: req.user,
@@ -61,7 +59,8 @@ export const today = asyncHandler(async (req, res) => {
 });
 
 export const timers = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await svc.getTimers() });
+  const data = await svc.getTimers();
+  res.json({ success: true, data });
 });
 
 export const detail = asyncHandler(async (req, res) => {
@@ -98,12 +97,10 @@ export const confirm = asyncHandler(async (req, res) => {
 });
 
 export const payment = asyncHandler(async (req, res) => {
-  res
-    .status(201)
-    .json({
-      success: true,
-      data: await svc.registerPayment(req.params.id, req.body, req.user),
-    });
+  res.status(201).json({
+    success: true,
+    data: await svc.registerPayment(req.params.id, req.body, req.user),
+  });
 });
 
 export const startTimer = asyncHandler(async (req, res) => {
@@ -124,10 +121,27 @@ export const checkIn = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await svc.checkIn(req.params.id, req.user) });
 });
 
+// ← NUEVO: tiempo extra
+export const addExtraTime = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    data: await svc.addExtraTime(req.params.id, req.body, req.user),
+  });
+});
+
+// ← NUEVO: asignar bloque siguiente
+export const addNextBlock = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    data: await svc.addNextBlock(req.params.id, req.user),
+  });
+});
+
 export const createBlock = asyncHandler(async (req, res) => {
-  res
-    .status(201)
-    .json({ success: true, data: await svc.createBlock(req.body, req.user) });
+  res.status(201).json({
+    success: true,
+    data: await svc.createBlock(req.body, req.user),
+  });
 });
 
 export const removeBlock = asyncHandler(async (req, res) => {

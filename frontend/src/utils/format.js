@@ -21,6 +21,20 @@ export const roleLabel = (role) =>
     cliente: "Cliente",
   })[role] ?? role;
 
+/**
+ * ← NUEVO: etiqueta legible del estado de una reserva.
+ * `en_curso` se muestra como "Vigente".
+ */
+export const statusLabel = (status) =>
+  ({
+    procesando: "Procesando",
+    ocupada: "Ocupada",
+    en_curso: "Vigente",
+    finalizada: "Finalizada",
+    cancelada: "Cancelada",
+    vencida: "Vencida",
+  })[status] ?? status;
+
 export const fmtMoney = (n) =>
   new Intl.NumberFormat("es-CO", {
     style: "currency",

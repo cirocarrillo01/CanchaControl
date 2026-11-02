@@ -91,6 +91,58 @@ export const expireStale = async () => {
   }
 };
 
+/**
+ * ← NUEVO: Auto-finaliza reservas cuyo bloque + extras ya terminó.
+ * Corre cada minuto desde server.js. Cambia status 'ocupada'/'en_curso' → 'finalizada'
+ * cuando la hora real supera el fin calculado (start + duration_blocks*block_minutes + extra_minutes).
+ */
+export const autoFinalize = async () => {
+  const now = nowBogota();
+  const settings = await getSettings();
+  const block = resolveSpan(settings.block_minutes);
+  const nowSec = toMin(now.time) * 60 + Number(now.time.split(":")[2] || 0);
+
+  const [rows] = await pool.query(
+    `SELECT id, date, start_time, duration_blocks, extra_minutes
+       FROM bookings
+      WHERE status IN ('ocupada','en_curso')
+        AND date <= ?`,
+    [now.date],
+  );
+
+  for (const b of rows) {
+    const startMin = toMin(b.start_time);
+    const endMin =
+      startMin + b.duration_blocks * block + (b.extra_minutes ?? 0);
+    const endSec = endMin * 60;
+
+    const shouldFinalize =
+      b.date < now.date || (b.date === now.date && nowSec >= endSec);
+    if (!shouldFinalize) continue;
+
+    await withTransaction(async (conn) => {
+      const [r] = await conn.query(
+        `UPDATE bookings
+           SET status = 'finalizada', finished_at = ?
+         WHERE id = ? AND status IN ('ocupada','en_curso')`,
+        [now.datetime, b.id],
+      );
+      if (r.affectedRows > 0) {
+        await logAction(conn, {
+          entity: "booking",
+          entityId: b.id,
+          action: "finalizada_auto",
+          detail: {
+            date: b.date,
+            start_time: b.start_time,
+            extra_minutes: b.extra_minutes,
+          },
+        });
+      }
+    });
+  }
+};
+
 /** RF09-RF13: disponibilidad pública por día. */
 export const getAvailability = async ({ date, courtId, viewer }) => {
   date = date || nowBogota().date;
@@ -106,7 +158,6 @@ export const getAvailability = async ({ date, courtId, viewer }) => {
     courtId ? [courtId] : [],
   );
 
-  // ← FIX: incluir s.kind (antes faltaba → los bloqueos manuales caían como "ocupado")
   const [slots] = await pool.query(
     `SELECT s.id AS slot_id, s.court_id, s.slot_start, s.kind AS slot_kind,
             b.id AS booking_id, b.status AS booking_status
@@ -131,7 +182,6 @@ export const getAvailability = async ({ date, courtId, viewer }) => {
       if (block.past) block.status = "pasado";
       if (!slot) return block;
 
-      // ← FIX: el tipo de slot manda; luego el estado del booking
       if (slot.slot_kind === "bloqueo") {
         block.status = "bloqueado";
       } else if (slot.booking_status === "procesando") {
@@ -143,7 +193,6 @@ export const getAvailability = async ({ date, courtId, viewer }) => {
       ) {
         block.status = "ocupado";
       } else {
-        // cancelada / vencida / null: no debería haber slot activo
         block.status = "ocupado";
       }
       return block;

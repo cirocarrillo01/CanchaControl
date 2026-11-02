@@ -23,10 +23,20 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { MoreVert } from "@mui/icons-material";
+import { Tune } from "@mui/icons-material";
 import API, { errMsg } from "../api/axios";
 import { useNotify } from "../context/NotifyContext";
-import { fmtDate, fmtMoney, fmtTime } from "../utils/format";
+import { fmtDate, fmtMoney, fmtTime, statusLabel } from "../utils/format";
+
+const today = () => {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(new Date());
+};
 
 const STATUS_COLOR = {
   procesando: "warning",
@@ -36,7 +46,6 @@ const STATUS_COLOR = {
   cancelada: "default",
   vencida: "default",
 };
-
 const PAY_COLOR = {
   pendiente: "default",
   parcial: "warning",
@@ -123,7 +132,9 @@ export default function Bookings() {
   const openPayment = (booking) => {
     setMenu({ anchor: null, booking: null });
     setPayBooking(booking);
-    const saldo = (booking.price_total ?? 0) - (booking.paid_reservation ?? 0);
+    const saldo =
+      (booking.price_total ?? 0) -
+      ((booking.paid_reservation ?? 0) + (booking.paid_extra ?? 0));
     setPayAmount(String(saldo > 0 ? saldo : (booking.price_total ?? "")));
     setPayMethod("efectivo");
     setPayOpen(true);
@@ -142,7 +153,7 @@ export default function Bookings() {
         method: payMethod,
         kind: "reserva",
       });
-      notify("Pago registrado. Ya puedes aprobar la reserva", "success");
+      notify("Pago registrado", "success");
       setPayOpen(false);
       setPayBooking(null);
       setPayAmount("");
@@ -180,7 +191,7 @@ export default function Bookings() {
     }
   };
 
-  // --------- Reprogramar (solo fecha/hora) ---------
+  // --------- Reprogramar ---------
   const openReschedule = (booking) => {
     setMenu({ anchor: null, booking: null });
     setReschedBooking(booking);
@@ -194,9 +205,25 @@ export default function Bookings() {
       notify("Fecha y hora son obligatorias", "error");
       return;
     }
+    if (reschedDate < today()) {
+      notify("No puedes reprogramar a una fecha pasada", "error");
+      return;
+    }
+    if (reschedDate === today()) {
+      const nowHHMM = new Intl.DateTimeFormat("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "America/Bogota",
+      }).format(new Date());
+      if (reschedStart <= nowHHMM) {
+        notify("No puedes reprogramar a una hora ya pasada", "error");
+        return;
+      }
+    }
+
     setReschedBusy(true);
     try {
-      // ← Solo enviamos date + start_time; el backend conserva precio y duración
       await API.post(`/bookings/${reschedBooking.id}/reschedule`, {
         date: reschedDate,
         start_time:
@@ -237,7 +264,7 @@ export default function Bookings() {
         >
           {FILTERS.map((s) => (
             <MenuItem key={s || "all"} value={s}>
-              {s || "Todos"}
+              {s ? statusLabel(s) : "Todos"}
             </MenuItem>
           ))}
         </TextField>
@@ -257,6 +284,7 @@ export default function Bookings() {
           {error}
         </Alert>
       )}
+
       {loading ? (
         <CircularProgress />
       ) : (
@@ -305,7 +333,7 @@ export default function Bookings() {
                 <TableCell>
                   <Chip
                     size="small"
-                    label={b.status}
+                    label={statusLabel(b.status)}
                     color={STATUS_COLOR[b.status] ?? "default"}
                   />
                 </TableCell>
@@ -325,7 +353,7 @@ export default function Bookings() {
                       setMenu({ anchor: e.currentTarget, booking: b })
                     }
                   >
-                    <MoreVert fontSize="small" />
+                    <Tune fontSize="small" />
                   </IconButton>
                 </TableCell>
               </TableRow>
@@ -334,7 +362,6 @@ export default function Bookings() {
         </Table>
       )}
 
-      {/* ---------- Menú contextual ---------- */}
       <Menu
         anchorEl={menu.anchor}
         open={Boolean(menu.anchor)}
@@ -342,15 +369,12 @@ export default function Bookings() {
       >
         {menu.booking && (
           <>
-            {/* procesando + NO pagado → cobrar */}
             {menu.booking.status === "procesando" &&
               menu.booking.payment_status !== "pagado" && (
                 <MenuItem onClick={() => openPayment(menu.booking)}>
                   Registrar pago
                 </MenuItem>
               )}
-
-            {/* procesando + pagado → aprobar */}
             {menu.booking.status === "procesando" &&
               menu.booking.payment_status === "pagado" && (
                 <MenuItem
@@ -364,30 +388,22 @@ export default function Bookings() {
                   Aprobar reserva
                 </MenuItem>
               )}
-
-            {/* ocupada + aún no pagado → cobrar */}
             {menu.booking.status === "ocupada" &&
               menu.booking.payment_status !== "pagado" && (
                 <MenuItem onClick={() => openPayment(menu.booking)}>
                   Registrar pago
                 </MenuItem>
               )}
-
-            {/* reprogramar (procesando u ocupada) */}
             {["procesando", "ocupada"].includes(menu.booking.status) && (
               <MenuItem onClick={() => openReschedule(menu.booking)}>
                 Reprogramar
               </MenuItem>
             )}
-
-            {/* cancelar (procesando u ocupada) */}
             {["procesando", "ocupada"].includes(menu.booking.status) && (
               <MenuItem onClick={() => openCancel(menu.booking)}>
                 Cancelar
               </MenuItem>
             )}
-
-            {/* cronómetro */}
             {menu.booking.status === "ocupada" &&
               !menu.booking.timer_started_at && (
                 <MenuItem
@@ -421,7 +437,7 @@ export default function Bookings() {
         )}
       </Menu>
 
-      {/* ---------- Modal pago ---------- */}
+      {/* Modal pago */}
       <Dialog
         open={payOpen}
         onClose={() => (payBusy ? null : setPayOpen(false))}
@@ -436,7 +452,12 @@ export default function Bookings() {
             </Typography>
             <Typography variant="body2">
               Total: <b>{fmtMoney(payBooking?.price_total)}</b> · Pagado:{" "}
-              <b>{fmtMoney(payBooking?.paid_reservation ?? 0)}</b>
+              <b>
+                {fmtMoney(
+                  (payBooking?.paid_reservation ?? 0) +
+                    (payBooking?.paid_extra ?? 0),
+                )}
+              </b>
             </Typography>
             <TextField
               label="Monto a cobrar"
@@ -457,9 +478,6 @@ export default function Bookings() {
               <MenuItem value="transferencia">Transferencia</MenuItem>
               <MenuItem value="tarjeta">Tarjeta</MenuItem>
             </TextField>
-            <Typography variant="caption" color="text.secondary">
-              Tras registrar el pago completo, podrás aprobar la reserva.
-            </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -476,7 +494,7 @@ export default function Bookings() {
         </DialogActions>
       </Dialog>
 
-      {/* ---------- Modal cancelar ---------- */}
+      {/* Modal cancelar */}
       <Dialog
         open={cancelOpen}
         onClose={() => (cancelBusy ? null : setCancelOpen(false))}
@@ -490,7 +508,7 @@ export default function Bookings() {
               Reserva <b>{cancelBooking?.code}</b> · {cancelBooking?.court_name}
             </Typography>
             <Typography variant="body2">
-              Fecha: <b>{cancelBooking ? fmtDate(cancelBooking.date) : ""}</b> ·
+              Fecha: <b>{cancelBooking ? fmtDate(cancelBooking.date) : ""}</b> ·{" "}
               Hora:{" "}
               <b>{cancelBooking ? fmtTime(cancelBooking.start_time) : ""}</b>
             </Typography>
@@ -503,9 +521,6 @@ export default function Bookings() {
               minRows={2}
               autoFocus
             />
-            <Typography variant="caption" color="text.secondary">
-              El bloque quedará liberado inmediatamente.
-            </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -523,7 +538,7 @@ export default function Bookings() {
         </DialogActions>
       </Dialog>
 
-      {/* ---------- Modal reprogramar (solo fecha y hora) ---------- */}
+      {/* Modal reprogramar */}
       <Dialog
         open={reschedOpen}
         onClose={() => (reschedBusy ? null : setReschedOpen(false))}
@@ -550,6 +565,7 @@ export default function Bookings() {
               value={reschedDate}
               onChange={(e) => setReschedDate(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              inputProps={{ min: today() }}
               fullWidth
             />
             <TextField
@@ -561,8 +577,8 @@ export default function Bookings() {
               fullWidth
             />
             <Typography variant="caption" color="text.secondary">
-              El precio, la duración y los pagos se conservan. Para cambiar la
-              tarifa o la duración, cancela y crea una nueva reserva.
+              El precio, la duración y los pagos se conservan. No se permiten
+              fechas ni horas pasadas.
             </Typography>
           </Stack>
         </DialogContent>
@@ -585,7 +601,7 @@ export default function Bookings() {
           <Pagination
             count={totalPages}
             page={page}
-            onChange={(_e, val) => setPage(val)}
+            onChange={(_e, v) => setPage(v)}
             showFirstButton
             showLastButton
           />

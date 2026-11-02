@@ -34,7 +34,7 @@ router.get(
 router.get("/bookings/timers", protect, authorize("administrador"), b.timers);
 
 // =====================================================================
-// LISTADO GENERAL (sin :id, no colisiona)
+// LISTADO GENERAL
 // =====================================================================
 router.get(
   "/bookings",
@@ -44,7 +44,7 @@ router.get(
 );
 
 // =====================================================================
-// CREAR (cliente o admin)
+// CREAR
 // =====================================================================
 router.post(
   "/bookings",
@@ -56,7 +56,6 @@ router.post(
 // =====================================================================
 // ACCIONES SOBRE UNA RESERVA ESPECÍFICA
 // =====================================================================
-// ← FIX: cliente Y administrador pueden cancelar
 router.post(
   "/bookings/:id/cancel",
   protect,
@@ -106,8 +105,23 @@ router.post(
   b.checkIn,
 );
 
+// ← NUEVAS: extensiones del cronómetro
+router.post(
+  "/bookings/:id/extra-time",
+  protect,
+  authorize("administrador"),
+  b.addExtraTime,
+);
+
+router.post(
+  "/bookings/:id/add-next",
+  protect,
+  authorize("administrador"),
+  b.addNextBlock,
+);
+
 // =====================================================================
-// DETALLE (param genérico, ÚLTIMO para no capturar las rutas específicas)
+// DETALLE (param genérico, ÚLTIMO)
 // =====================================================================
 router.get("/bookings/:id", protect, authorize("cliente"), b.detail);
 
