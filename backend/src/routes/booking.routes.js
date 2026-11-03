@@ -69,7 +69,12 @@ router.post(
   authorize("administrador"),
   b.confirm,
 );
-
+router.post(
+  "/bookings/:id/refund",
+  protect,
+  authorize("administrador"),
+  b.refund,
+);
 router.post(
   "/bookings/:id/reschedule",
   protect,

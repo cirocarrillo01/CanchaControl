@@ -11,3 +11,6 @@ export const usage = asyncHandler(async (req, res) => {
 export const status = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await reports.statusReport(req.query) });
 });
+export const methods = asyncHandler(async (req, res) => {
+  res.json({ success: true, data: await reports.methodsReport(req.query) });
+});

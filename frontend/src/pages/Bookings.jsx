@@ -92,6 +92,12 @@ export default function Bookings() {
   const [reschedStart, setReschedStart] = useState("");
   const [reschedBusy, setReschedBusy] = useState(false);
 
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundBooking, setRefundBooking] = useState(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundMethod, setRefundMethod] = useState("efectivo");
+  const [refundBusy, setRefundBusy] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -189,6 +195,32 @@ export default function Bookings() {
     }
   };
 
+  const openRefund = (booking) => {
+    setMenu({ anchor: null, booking: null });
+    setRefundBooking(booking);
+    setRefundReason("Cliente no requiere el servicio");
+    setRefundMethod("efectivo");
+    setRefundOpen(true);
+  };
+
+  const submitRefund = async () => {
+    setRefundBusy(true);
+    try {
+      await API.post(`/bookings/${refundBooking.id}/refund`, {
+        reason: refundReason || "Devolución solicitada",
+        method: refundMethod,
+      });
+      notify("Devolución registrada", "success");
+      setRefundOpen(false);
+      setRefundBooking(null);
+      load();
+    } catch (e) {
+      notify(errMsg(e), "error");
+    } finally {
+      setRefundBusy(false);
+    }
+  };
+
   // --------- Reprogramar ---------
   const openReschedule = (booking) => {
     setMenu({ anchor: null, booking: null });
@@ -276,13 +308,11 @@ export default function Bookings() {
           sx={{ minWidth: 260 }}
         />
       </Stack>
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
-
       {loading ? (
         <CircularProgress />
       ) : (
@@ -359,7 +389,6 @@ export default function Bookings() {
           </TableBody>
         </Table>
       )}
-
       <Menu
         anchorEl={menu.anchor}
         open={Boolean(menu.anchor)}
@@ -397,11 +426,18 @@ export default function Bookings() {
                 Reprogramar
               </MenuItem>
             )}
+            {["procesando", "ocupada"].includes(menu.booking.status) &&
+              ["pagado", "parcial"].includes(menu.booking.payment_status) && (
+                <MenuItem onClick={() => openRefund(menu.booking)}>
+                  Devolver pago
+                </MenuItem>
+              )}
             {["procesando", "ocupada"].includes(menu.booking.status) && (
               <MenuItem onClick={() => openCancel(menu.booking)}>
                 Cancelar
               </MenuItem>
             )}
+
             {menu.booking.status === "ocupada" &&
               !menu.booking.timer_started_at && (
                 <MenuItem
@@ -434,7 +470,6 @@ export default function Bookings() {
           </>
         )}
       </Menu>
-
       {/* Modal pago */}
       <Dialog
         open={payOpen}
@@ -491,7 +526,6 @@ export default function Bookings() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Modal cancelar */}
       <Dialog
         open={cancelOpen}
@@ -535,7 +569,6 @@ export default function Bookings() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Modal reprogramar */}
       <Dialog
         open={reschedOpen}
@@ -592,7 +625,71 @@ export default function Bookings() {
           </Button>
         </DialogActions>
       </Dialog>
-
+      {/* Modal devolución */}
+      <Dialog
+        open={refundOpen}
+        onClose={() => (refundBusy ? null : setRefundOpen(false))}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Devolver pago</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} mt={1}>
+            <Typography variant="body2">
+              Reserva <b>{refundBooking?.code}</b> · {refundBooking?.court_name}
+            </Typography>
+            <Typography variant="body2">
+              Pagado total:{" "}
+              <b>
+                {fmtMoney(
+                  (refundBooking?.paid_reservation ?? 0) +
+                    (refundBooking?.paid_extra ?? 0),
+                )}
+              </b>
+            </Typography>
+            <Typography variant="body2" color="error.main">
+              Máximo reembolsable: pagos menos devoluciones previas de esta
+              reserva.
+            </Typography>
+            <TextField
+              label="Motivo del reembolso"
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+            />
+            <TextField
+              select
+              label="Método del reembolso"
+              value={refundMethod}
+              onChange={(e) => setRefundMethod(e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="efectivo">Efectivo</MenuItem>
+              <MenuItem value="transferencia">Transferencia</MenuItem>
+              <MenuItem value="tarjeta">Tarjeta</MenuItem>
+            </TextField>
+            <Typography variant="caption" color="text.secondary">
+              La reserva pasará a estado reembolsada/cancelada y el bloque
+              quedará libre. El monto se descontará de los ingresos del día.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRefundOpen(false)} disabled={refundBusy}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={submitRefund}
+            disabled={refundBusy}
+          >
+            {refundBusy ? "Devolviendo…" : "Confirmar devolución"}
+          </Button>
+        </DialogActions>
+      </Dialog>
       {total > 0 && (
         <Box sx={{ mt: 3, display: "flex", justifyContent: "center" }}>
           <Pagination

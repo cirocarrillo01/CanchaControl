@@ -9,5 +9,6 @@ router.use(protect, authorize("administrador", "dueno"));
 router.get("/reports/income", r.income);
 router.get("/reports/usage", r.usage);
 router.get("/reports/status", r.status);
+router.get("/reports/methods", r.methods);
 
 export default router;

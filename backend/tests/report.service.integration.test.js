@@ -6,7 +6,7 @@ import {
   usageReport,
   statusReport,
 } from "../src/services/report.service.js";
-
+import { methodsReport } from "../src/services/report.service.js";
 jest.setTimeout(20000);
 
 const today = "2026-11-01";
@@ -14,7 +14,9 @@ const today = "2026-11-01";
 async function ensureSchema() {
   const [tables] = await pool.query("SHOW TABLES LIKE 'payments'");
   if (!tables.length) {
-    throw new Error("Las tablas no existen. Ejecuta npm run seed:reset primero.");
+    throw new Error(
+      "Las tablas no existen. Ejecuta npm run seed:reset primero.",
+    );
   }
 }
 
@@ -22,23 +24,25 @@ async function seedMinimal() {
   // Usuario admin
   await pool.query(
     `INSERT IGNORE INTO users (id, name, email, phone, password, role, active)
-     VALUES (1, 'Admin Test', 'admin@test.com', '3001111111', 'hash', 'administrador', 1)`
+     VALUES (1, 'Admin Test', 'admin@test.com', '3001111111', 'hash', 'administrador', 1)`,
   );
   // Cancha
   const [courts] = await pool.query("SELECT id FROM courts LIMIT 1");
   if (!courts.length) {
     await pool.query(
-      "INSERT INTO courts (name, description, status) VALUES ('Cancha Test', 'Test', 'activa')"
+      "INSERT INTO courts (name, description, status) VALUES ('Cancha Test', 'Test', 'activa')",
     );
   }
 
   // Pago de prueba
-  const [bookings] = await pool.query("SELECT id, price_total FROM bookings LIMIT 1");
+  const [bookings] = await pool.query(
+    "SELECT id, price_total FROM bookings LIMIT 1",
+  );
   if (bookings.length) {
     await pool.query(
       `INSERT INTO payments (booking_id, amount, kind, method, created_by)
        VALUES (?, ?, 'reserva', 'efectivo', 1)`,
-      [bookings[0].id, bookings[0].price_total]
+      [bookings[0].id, bookings[0].price_total],
     );
   }
 }
@@ -49,7 +53,10 @@ describe("report.service (integración)", () => {
       await ensureSchema();
       await seedMinimal();
     } catch (e) {
-      console.log("⚠️  Saltando pruebas de integración report.service:", e.message);
+      console.log(
+        "⚠️  Saltando pruebas de integración report.service:",
+        e.message,
+      );
     }
   });
 
@@ -83,6 +90,24 @@ describe("report.service (integración)", () => {
     result.statuses.forEach((s) => {
       expect(s).toHaveProperty("status");
       expect(typeof s.count).toBe("number");
+    });
+  });
+  it("incomeReport incluye total_bruto, total_neto y total_devoluciones", async () => {
+    const r = await incomeReport({ from: today, to: today });
+    expect(r).toHaveProperty("total_bruto");
+    expect(r).toHaveProperty("total_neto");
+    expect(r).toHaveProperty("total_devoluciones");
+    expect(typeof r.total_neto).toBe("number");
+  });
+
+  it("methodsReport devuelve bruto/devoluciones/neto por método", async () => {
+    const r = await methodsReport({ from: today, to: today });
+    expect(Array.isArray(r.methods)).toBe(true);
+    r.methods.forEach((m) => {
+      expect(m).toHaveProperty("method");
+      expect(m).toHaveProperty("bruto");
+      expect(m).toHaveProperty("devoluciones");
+      expect(m).toHaveProperty("neto");
     });
   });
 });

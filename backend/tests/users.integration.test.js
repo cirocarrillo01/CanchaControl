@@ -51,7 +51,7 @@ function apiRequest(method, path, body = null, token = null) {
             resolve({ status: res.statusCode, body: data });
           }
         });
-      }
+      },
     );
     req.on("error", reject);
     if (body) req.write(JSON.stringify(body));
@@ -68,7 +68,12 @@ describe("Users API (integración)", () => {
 
   it("GET /api/users con token admin → 200 paginado", async () => {
     if (!server || !adminToken) return;
-    const res = await apiRequest("GET", "/users?page=1&limit=20", null, adminToken);
+    const res = await apiRequest(
+      "GET",
+      "/users?page=1&limit=20",
+      null,
+      adminToken,
+    );
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data)).toBe(true);
@@ -89,4 +94,49 @@ describe("Users API (integración)", () => {
       expect(res.status).toBe(403);
     }
   });
+});
+it("PUT /api/users/:id cambia active sin 500 (bug fix)", async () => {
+  if (!server || !adminToken) return;
+
+  // Creamos un usuario de prueba
+  const create = await apiRequest(
+    "POST",
+    "/users",
+    {
+      name: "Test Active",
+      email: `test.active.${Date.now()}@t.com`,
+      phone: "3001234567",
+      role: "cliente",
+      password: "Abc12345",
+      active: true,
+    },
+    adminToken,
+  );
+  expect(create.status).toBe(201);
+  const id = create.body.data.id;
+
+  // PUT con active=false
+  const off = await apiRequest(
+    "PUT",
+    `/users/${id}`,
+    {
+      name: "Test Active",
+      phone: "3001234567",
+      role: "cliente",
+      active: false,
+    },
+    adminToken,
+  );
+  expect(off.status).toBe(200);
+  expect(off.body.data.active).toBe(0);
+
+  // PUT de vuelta a active=true
+  const on = await apiRequest(
+    "PUT",
+    `/users/${id}`,
+    { name: "Test Active", phone: "3001234567", role: "cliente", active: true },
+    adminToken,
+  );
+  expect(on.status).toBe(200);
+  expect(on.body.data.active).toBe(1);
 });

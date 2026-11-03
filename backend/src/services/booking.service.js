@@ -63,12 +63,14 @@ const uniqueCode = async (conn) => {
   throw new AppError(500, "No se pudo generar un código de turno");
 };
 
+// Devuelve el resultado del INSERT para poder leer insertId
 const insertSlots = async (conn, rows, label) => {
   try {
-    await conn.query(
+    const [result] = await conn.query(
       "INSERT INTO court_slots (court_id, slot_date, slot_start, kind, booking_id, reason, created_by) VALUES ?",
       [rows],
     );
+    return result;
   } catch (e) {
     if (e.code === "ER_DUP_ENTRY")
       throw new AppError(
@@ -596,6 +598,20 @@ export const cancelBooking = async (id, { reason }, user) => {
     if (booking.status === "finalizada")
       throw new AppError(409, "No se puede cancelar una reserva finalizada");
 
+    // Si la reserva tiene pagos registrados, impedir la cancelación simple:
+    // el operador debe procesar el reembolso vía refundBooking para no perder
+    // el rastro del dinero devuelto al cliente.
+    const [[{ net_paid }]] = await conn.query(
+      `SELECT COALESCE(SUM(CASE WHEN kind='devolucion' THEN -amount ELSE amount END), 0) AS net_paid
+         FROM payments WHERE booking_id = ?`,
+      [id],
+    );
+    if (Number(net_paid ?? 0) > 0)
+      throw new AppError(
+        409,
+        `Esta reserva tiene pagos por ${Number(net_paid)}. Procese el reembolso antes de cancelar.`
+      );
+
     if (user.role === "cliente") {
       if (booking.customer_id !== user.id)
         throw new AppError(
@@ -950,7 +966,7 @@ export const createBlock = async (
   await assertActiveCourt(court_id);
 
   return withTransaction(async (conn) => {
-    await insertSlots(
+    const result = await insertSlots(
       conn,
       [
         [
@@ -967,7 +983,7 @@ export const createBlock = async (
     );
     await logAction(conn, {
       entity: "block",
-      entityId: null,
+      entityId: result.insertId ?? 0,
       action: "creado",
       userId: user.id,
       detail: { court_id, date, start_time, reason },
@@ -997,5 +1013,108 @@ export const removeBlock = async (slotId, user) => {
       userId: user.id,
     });
     return { removed: true };
+  });
+};
+
+// DEVOLUCIONES
+
+export const refundBooking = async (id, body, user) => {
+  const { reason, method = "efectivo" } = body;
+  if (!["efectivo", "transferencia", "tarjeta"].includes(method))
+    throw new AppError(400, "Método de reembolso inválido");
+
+  return withTransaction(async (conn) => {
+    const booking = await findOrFail(id, conn);
+
+    const refundableStatuses = [
+      "procesando",
+      "ocupada",
+      "en_curso",
+      "finalizada",
+    ];
+    if (!refundableStatuses.includes(booking.status))
+      throw new AppError(
+        409,
+        `Solo se reembolsan reservas en proceso, ocupadas, en curso o finalizadas (actual: ${booking.status})`,
+      );
+
+    // La ventana de anticipación solo aplica si la reserva aún no se ha consumido.
+    // Para reservas en_curso/finalizada el servicio ya se prestó; no se bloquea por min_cancel_hours.
+    const isConsumed = ["en_curso", "finalizada"].includes(booking.status);
+    if (!isConsumed) {
+      const settings = await getSettings();
+      const hours =
+        diffSeconds(
+          nowBogota().datetime,
+          `${booking.date} ${booking.start_time}`,
+        ) / 3600;
+      if (hours < settings.min_cancel_hours)
+        throw new AppError(
+          409,
+          `Solo se puede reembolsar con al menos ${settings.min_cancel_hours}h de anticipación`,
+        );
+    }
+
+    // Bloqueo de fila para evitar race conditions en reembolsos concurrentes.
+    const [[{ net_paid }]] = await conn.query(
+      `SELECT COALESCE(SUM(CASE WHEN kind='devolucion' THEN -amount ELSE amount END), 0) AS net_paid
+         FROM payments WHERE booking_id = ? FOR UPDATE`,
+      [id],
+    );
+    const maxRefundable = Number(net_paid ?? 0);
+    if (maxRefundable <= 0)
+      throw new AppError(
+        409,
+        "No hay pagos que devolver para esta reserva"
+      );
+
+    // ← FIX: la devolución se atribuye a la fecha del pago original,
+    // no a la fecha en que se procesa. Así el reporte del día del pago
+    // muestra +pago −devolución = 0 (sin negativos).
+    const [[firstPay]] = await conn.query(
+      `SELECT MIN(paid_at) AS first_paid FROM payments
+        WHERE booking_id = ? AND kind <> 'devolucion'`,
+      [id],
+    );
+    const paidAt = firstPay?.first_paid
+      ? String(firstPay.first_paid).slice(0, 19)
+      : nowBogota().datetime;
+
+    const [pr] = await conn.query(
+      `INSERT INTO payments (booking_id, amount, kind, method, note, created_by, paid_at)
+       VALUES (?, ?, 'devolucion', ?, ?, ?, ?)`,
+      [id, maxRefundable, method, reason ?? "Devolución solicitada", user.id, paidAt],
+    );
+
+    const newStatus = isConsumed ? "reembolsada" : "cancelada";
+    await conn.query("DELETE FROM court_slots WHERE booking_id = ?", [id]);
+    await conn.query(
+      `UPDATE bookings
+         SET status = ?,
+             refunded_amount = refunded_amount + ?,
+             cancel_reason = ?,
+             cancelled_by = ?,
+             cancelled_at = ?
+       WHERE id = ?`,
+      [newStatus, maxRefundable, `Reembolso: ${reason ?? "N/A"}`, user.id, nowBogota().datetime, id],
+    );
+
+    await logAction(conn, {
+      entity: "booking",
+      entityId: Number(id),
+      action: "reembolsada",
+      userId: user.id,
+      detail: {
+        amount: maxRefundable,
+        max_refundable: maxRefundable,
+        reason,
+        method,
+        payment_id: pr.insertId,
+        paid_at: paidAt,
+        new_status: newStatus,
+      },
+    });
+
+    return findOrFail(id, conn);
   });
 };

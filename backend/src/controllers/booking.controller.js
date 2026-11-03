@@ -150,3 +150,9 @@ export const removeBlock = asyncHandler(async (req, res) => {
     data: await svc.removeBlock(req.params.slotId, req.user),
   });
 });
+export const refund = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    data: await svc.refundBooking(req.params.id, req.body, req.user),
+  });
+});

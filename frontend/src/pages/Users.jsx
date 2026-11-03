@@ -18,6 +18,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   TextField,
@@ -120,25 +121,34 @@ export default function Users() {
     });
 
   return (
-    <Box>
+    <Box sx={{ width: "100%", minWidth: 0 }}>
       <Stack
-        direction={{ xs: "column", sm: "row" }}
-        alignItems={{ sm: "center" }}
+        direction={{ xs: "column", md: "row" }}
+        alignItems={{ md: "center" }}
         spacing={2}
         mb={2}
       >
-        <Typography variant="h5" fontWeight={700} sx={{ flexGrow: 1 }}>
+        <Typography
+          variant="h5"
+          fontWeight={700}
+          sx={{ flexGrow: 1, minWidth: "max-content" }}
+        >
           Usuarios
         </Typography>
         <TextField
-          size="small"
-          placeholder="Buscar nombre, email o teléfono"
+          placeholder="Buscar por nombre, email o teléfono…"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
             setPage(1);
           }}
-          sx={{ minWidth: 260 }}
+          sx={{
+            flexGrow: { xs: 1, md: 0 },
+            minWidth: { xs: "100%", sm: 320, md: 420 },
+            maxWidth: { md: 520 },
+            "& .MuiOutlinedInput-root": { height: 42 }, // ← mismo alto que el botón
+          }}
+          InputProps={{ sx: { fontSize: 15 } }}
         />
         <TextField
           size="small"
@@ -149,7 +159,10 @@ export default function Users() {
             setRoleFilter(e.target.value);
             setPage(1);
           }}
-          sx={{ minWidth: 170 }}
+          sx={{
+            minWidth: { xs: "100%", sm: 170 },
+            "& .MuiOutlinedInput-root": { height: 42 }, // ← mismo alto
+          }}
         >
           <MenuItem value="all">Todos</MenuItem>
           {ROLES.map((r) => (
@@ -162,6 +175,7 @@ export default function Users() {
           startIcon={<Add />}
           variant="contained"
           onClick={() => open("create")}
+          sx={{ whiteSpace: "nowrap", height: 42 }} // ← mismo alto
         >
           Nuevo usuario
         </Button>
@@ -175,64 +189,66 @@ export default function Users() {
       {loading ? (
         <CircularProgress />
       ) : (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Nombre</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Teléfono</TableCell>
-              <TableCell>Rol</TableCell>
-              <TableCell>Activo</TableCell>
-              <TableCell align="right">Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.length === 0 && (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={6} align="center">
-                  Sin resultados
-                </TableCell>
+                <TableCell>Nombre</TableCell>
+                <TableCell>Email</TableCell>
+                <TableCell>Teléfono</TableCell>
+                <TableCell>Rol</TableCell>
+                <TableCell>Activo</TableCell>
+                <TableCell align="right">Acciones</TableCell>
               </TableRow>
-            )}
-            {rows.map((u) => {
-              const isMe = u.id === currentUser?.id;
-              return (
-                <TableRow key={u.id}>
-                  <TableCell>{u.name}</TableCell>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>{u.phone ?? "—"}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={roleLabel(u.role)} />
-                  </TableCell>
-                  <TableCell>{u.active ? "✔" : "✘"}</TableCell>
-                  <TableCell align="right">
-                    <IconButton size="small" onClick={() => open("edit", u)}>
-                      <Edit fontSize="small" />
-                    </IconButton>
-                    <Tooltip
-                      title={
-                        isMe
-                          ? "Usa 'Eliminar mi cuenta' en tu perfil"
-                          : "Eliminar cuenta"
-                      }
-                    >
-                      <span>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          disabled={isMe}
-                          onClick={() => setConfirmDelete(u)}
-                        >
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+            </TableHead>
+            <TableBody>
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    Sin resultados
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              )}
+              {rows.map((u) => {
+                const isMe = u.id === currentUser?.id;
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell>{u.name}</TableCell>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>{u.phone ?? "—"}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={roleLabel(u.role)} />
+                    </TableCell>
+                    <TableCell>{u.active ? "✔" : "✘"}</TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => open("edit", u)}>
+                        <Edit fontSize="small" />
+                      </IconButton>
+                      <Tooltip
+                        title={
+                          isMe
+                            ? "Usa 'Eliminar mi cuenta' en tu perfil"
+                            : "Eliminar cuenta"
+                        }
+                      >
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            disabled={isMe}
+                            onClick={() => setConfirmDelete(u)}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       {dialog && (

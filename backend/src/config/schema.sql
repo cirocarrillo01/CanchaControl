@@ -79,8 +79,9 @@ CREATE TABLE IF NOT EXISTS bookings (
   `date` DATE NOT NULL,
   start_time TIME NOT NULL,
   duration_blocks TINYINT NOT NULL DEFAULT 1,
-  status ENUM('procesando','ocupada','en_curso','finalizada','cancelada','vencida') NOT NULL DEFAULT 'procesando',
+  status ENUM('procesando','ocupada','en_curso','finalizada','cancelada','vencida','reembolsada') NOT NULL DEFAULT 'procesando',
   price_total DECIMAL(10,0) NOT NULL DEFAULT 0,
+  refunded_amount DECIMAL(10,0) NOT NULL DEFAULT 0,
   expires_at DATETIME NULL,
   timer_started_at DATETIME NULL,
   timer_ends_at DATETIME NULL,
@@ -130,7 +131,7 @@ CREATE TABLE IF NOT EXISTS court_slots (
 CREATE TABLE IF NOT EXISTS payments (
   id INT AUTO_INCREMENT PRIMARY KEY,
   booking_id INT NOT NULL,
-  kind ENUM('reserva','tiempo_adicional') NOT NULL DEFAULT 'reserva',
+  kind ENUM('reserva','tiempo_adicional','devolucion') NOT NULL DEFAULT 'reserva',
   method ENUM('efectivo','transferencia') NOT NULL DEFAULT 'efectivo',
   amount DECIMAL(10,0) NOT NULL,
   extra_minutes INT NULL,
@@ -138,6 +139,7 @@ CREATE TABLE IF NOT EXISTS payments (
   paid_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by INT NULL,
   INDEX idx_pay_date (paid_at),
+  INDEX idx_pay_booking_kind (booking_id, kind),
   CONSTRAINT fk_pay_booking FOREIGN KEY (booking_id) REFERENCES bookings(id),
   CONSTRAINT fk_pay_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,5 +1,5 @@
 // frontend/src/pages/Config.jsx
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -19,16 +19,28 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { Block, Delete, Edit, Save } from "@mui/icons-material";
+import { Delete, Edit, Lock, Save } from "@mui/icons-material";
 import API, { errMsg } from "../api/axios";
 import { useNotify } from "../context/NotifyContext";
 import { fmtDate, fmtMoney, fmtTime } from "../utils/format";
+
+const today = () => {
+  const f = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return f.format(new Date());
+};
 
 /* ------------------------------------------------------------------ */
 /* Contenedor con pestañas                                             */
@@ -36,7 +48,7 @@ import { fmtDate, fmtMoney, fmtTime } from "../utils/format";
 export default function Config() {
   const [tab, setTab] = useState("settings");
   return (
-    <Box>
+    <Box sx={{ width: "100%", minWidth: 0 }}>
       <Typography variant="h5" fontWeight={700} mb={2}>
         Configuración
       </Typography>
@@ -64,7 +76,7 @@ export default function Config() {
 }
 
 /* ------------------------------------------------------------------ */
-/* General — formulario a 2 columnas                                   */
+/* General — 2 columnas, responsive, sin desbordar                     */
 /* ------------------------------------------------------------------ */
 function Settings() {
   const notify = useNotify();
@@ -106,8 +118,14 @@ function Settings() {
         e.preventDefault();
         save();
       }}
+      sx={{ maxWidth: 900 }}
     >
-      <Grid container spacing={2} maxWidth={800}>
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <Typography variant="subtitle2" color="text.secondary">
+            Datos del negocio
+          </Typography>
+        </Grid>
         <Grid item xs={12} sm={6}>
           <TextField
             label="Nombre del negocio"
@@ -116,8 +134,12 @@ function Settings() {
             fullWidth
           />
         </Grid>
-        <Grid item xs={12} sm={6} />
 
+        <Grid item xs={12} mt={1}>
+          <Typography variant="subtitle2" color="text.secondary">
+            Horario de atención
+          </Typography>
+        </Grid>
         <Grid item xs={12} sm={6}>
           <TextField
             label="Hora de apertura"
@@ -139,13 +161,18 @@ function Settings() {
           />
         </Grid>
 
+        <Grid item xs={12} mt={1}>
+          <Typography variant="subtitle2" color="text.secondary">
+            Bloques y reservas
+          </Typography>
+        </Grid>
         <Grid item xs={12} sm={6}>
           <TextField
             label="Duración del bloque (min)"
             type="number"
             value={s.block_minutes}
             onChange={set("block_minutes")}
-            helperText="Afecta la agenda y el cálculo del cronómetro"
+            helperText="Afecta la agenda y el cronómetro"
             fullWidth
           />
         </Grid>
@@ -155,22 +182,20 @@ function Settings() {
             type="number"
             value={s.online_hold_minutes}
             onChange={set("online_hold_minutes")}
-            helperText="Tiempo que un cliente tiene para pagar antes de vencer"
+            helperText="Tiempo para pagar antes de vencer"
             fullWidth
           />
         </Grid>
-
         <Grid item xs={12} sm={6}>
           <TextField
             label="Cancelación mínima (horas)"
             type="number"
             value={s.min_cancel_hours}
             onChange={set("min_cancel_hours")}
-            helperText="Anticipación mínima del cliente para cancelar"
+            helperText="Anticipación mínima del cliente"
             fullWidth
           />
         </Grid>
-        <Grid item xs={12} sm={6} />
 
         <Grid item xs={12}>
           <Button type="submit" variant="contained" startIcon={<Save />}>
@@ -183,7 +208,7 @@ function Settings() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Canchas — crear, editar y eliminar                                  */
+/* Canchas                                                             */
 /* ------------------------------------------------------------------ */
 function Courts() {
   const notify = useNotify();
@@ -263,64 +288,80 @@ function Courts() {
 
   return (
     <Stack spacing={3}>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-        <TextField
-          size="small"
-          label="Nombre"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <TextField
-          size="small"
-          label="Descripción"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          sx={{ flexGrow: 1 }}
-        />
-        <TextField
-          size="small"
-          select
-          label="Estado"
-          value={form.status}
-          onChange={(e) => setForm({ ...form, status: e.target.value })}
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="activa">Activa</MenuItem>
-          <MenuItem value="inactiva">Inactiva</MenuItem>
-          <MenuItem value="mantenimiento">Mantenimiento</MenuItem>
-        </TextField>
-        <Button variant="contained" onClick={save}>
-          Agregar
-        </Button>
-      </Stack>
+      <Grid container spacing={1} alignItems="center">
+        <Grid item xs={12} sm={3} md={2}>
+          <TextField
+            fullWidth
+            size="small"
+            label="Nombre"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </Grid>
+        <Grid item xs={12} sm={5} md={6}>
+          <TextField
+            fullWidth
+            size="small"
+            label="Descripción"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </Grid>
+        <Grid item xs={12} sm={2} md={2}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Estado"
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+          >
+            <MenuItem value="activa">Activa</MenuItem>
+            <MenuItem value="inactiva">Inactiva</MenuItem>
+            <MenuItem value="mantenimiento">Mantenimiento</MenuItem>
+          </TextField>
+        </Grid>
+        <Grid item xs={12} sm={2} md={2}>
+          <Button
+            variant="contained"
+            onClick={save}
+            fullWidth
+            sx={{ height: 40 }}
+          >
+            Agregar
+          </Button>
+        </Grid>
+      </Grid>
 
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Nombre</TableCell>
-            <TableCell>Descripción</TableCell>
-            <TableCell>Estado</TableCell>
-            <TableCell align="right">Acciones</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.map((c) => (
-            <TableRow key={c.id}>
-              <TableCell>{c.name}</TableCell>
-              <TableCell>{c.description ?? "—"}</TableCell>
-              <TableCell>{c.status}</TableCell>
-              <TableCell align="right">
-                <IconButton size="small" onClick={() => openEdit(c)}>
-                  <Edit fontSize="small" />
-                </IconButton>
-                <IconButton size="small" color="error" onClick={() => del(c)}>
-                  <Delete fontSize="small" />
-                </IconButton>
-              </TableCell>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Nombre</TableCell>
+              <TableCell>Descripción</TableCell>
+              <TableCell>Estado</TableCell>
+              <TableCell align="right">Acciones</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {rows.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell>{c.name}</TableCell>
+                <TableCell>{c.description ?? "—"}</TableCell>
+                <TableCell>{c.status}</TableCell>
+                <TableCell align="right">
+                  <IconButton size="small" onClick={() => openEdit(c)}>
+                    <Edit fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" color="error" onClick={() => del(c)}>
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       <Dialog
         open={editOpen}
@@ -433,120 +474,173 @@ function Rates() {
 
   return (
     <Stack spacing={3}>
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        spacing={1}
-        flexWrap="wrap"
-      >
-        <TextField
-          size="small"
-          select
-          label="Cancha"
-          value={form.court_id}
-          onChange={(e) => setForm({ ...form, court_id: e.target.value })}
-          sx={{ minWidth: 160 }}
-        >
-          <MenuItem value="all">Todas</MenuItem>
-          {courts.map((c) => (
-            <MenuItem key={c.id} value={String(c.id)}>
-              {c.name}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          size="small"
-          select
-          label="Día"
-          value={form.day_type}
-          onChange={(e) => setForm({ ...form, day_type: e.target.value })}
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="semana">Semana</MenuItem>
-          <MenuItem value="finde">Fin de semana</MenuItem>
-        </TextField>
-        <TextField
-          size="small"
-          type="time"
-          label="Desde"
-          value={form.start_time}
-          onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-          InputLabelProps={{ shrink: true }}
-          sx={{ minWidth: 120 }}
-        />
-        <TextField
-          size="small"
-          type="time"
-          label="Hasta"
-          value={form.end_time}
-          onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-          InputLabelProps={{ shrink: true }}
-          sx={{ minWidth: 120 }}
-        />
-        <TextField
-          size="small"
-          type="number"
-          label="Precio"
-          value={form.price}
-          onChange={(e) => setForm({ ...form, price: e.target.value })}
-          sx={{ minWidth: 130 }}
-        />
-        <Button variant="contained" onClick={save}>
-          Agregar
-        </Button>
-      </Stack>
+      <Grid container spacing={1} alignItems="center">
+        <Grid item xs={12} sm={6} md={3}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Cancha"
+            value={form.court_id}
+            onChange={(e) => setForm({ ...form, court_id: e.target.value })}
+          >
+            <MenuItem value="all">Todas</MenuItem>
+            {courts.map((c) => (
+              <MenuItem key={c.id} value={String(c.id)}>
+                {c.name}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2}>
+          <TextField
+            fullWidth
+            size="small"
+            select
+            label="Día"
+            value={form.day_type}
+            onChange={(e) => setForm({ ...form, day_type: e.target.value })}
+          >
+            <MenuItem value="semana">Semana</MenuItem>
+            <MenuItem value="finde">Fin de semana</MenuItem>
+          </TextField>
+        </Grid>
+        <Grid item xs={6} sm={3} md={1.5}>
+          <TextField
+            fullWidth
+            size="small"
+            type="time"
+            label="Desde"
+            value={form.start_time}
+            onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3} md={1.5}>
+          <TextField
+            fullWidth
+            size="small"
+            type="time"
+            label="Hasta"
+            value={form.end_time}
+            onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Grid>
+        <Grid item xs={6} sm={6} md={2}>
+          <TextField
+            fullWidth
+            size="small"
+            type="number"
+            label="Precio"
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: e.target.value })}
+          />
+        </Grid>
+        <Grid item xs={6} sm={6} md={2}>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={save}
+            sx={{ height: 40 }}
+          >
+            Agregar
+          </Button>
+        </Grid>
+      </Grid>
 
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Cancha</TableCell>
-            <TableCell>Día</TableCell>
-            <TableCell>Desde</TableCell>
-            <TableCell>Hasta</TableCell>
-            <TableCell align="right">Precio</TableCell>
-            <TableCell />
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell>{r.court_name ?? "Todas"}</TableCell>
-              <TableCell>{r.day_type}</TableCell>
-              <TableCell>{r.start_time.slice(0, 5)}</TableCell>
-              <TableCell>{r.end_time.slice(0, 5)}</TableCell>
-              <TableCell align="right">{fmtMoney(r.price)}</TableCell>
-              <TableCell>
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => del(r.id)}
-                >
-                  <Delete fontSize="small" />
-                </IconButton>
-              </TableCell>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Cancha</TableCell>
+              <TableCell>Día</TableCell>
+              <TableCell>Desde</TableCell>
+              <TableCell>Hasta</TableCell>
+              <TableCell align="right">Precio</TableCell>
+              <TableCell />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell>{r.court_name ?? "Todas"}</TableCell>
+                <TableCell>{r.day_type}</TableCell>
+                <TableCell>{r.start_time.slice(0, 5)}</TableCell>
+                <TableCell>{r.end_time.slice(0, 5)}</TableCell>
+                <TableCell align="right">{fmtMoney(r.price)}</TableCell>
+                <TableCell>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => del(r.id)}
+                  >
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Stack>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Bloqueos de mantenimiento                                           */
+/* Bloqueos — vista tipo calendario por filas                          */
 /* ------------------------------------------------------------------ */
+const blockStyle = (b) => {
+  switch (b.status) {
+    case "disponible":
+      return {
+        bg: "#E8F5E9",
+        fg: "#1B5E20",
+        bd: "#A5D6A7",
+        hover: "#C8E6C9",
+        clickable: true,
+        label: "Libre",
+      };
+    case "bloqueado":
+      return {
+        bg: "#FFE0B2",
+        fg: "#E65100",
+        bd: "#FFB74D",
+        hover: "#FFCC80",
+        clickable: true,
+        label: "Bloq.",
+      };
+    case "procesando":
+      return {
+        bg: "#FFF9C4",
+        fg: "#827717",
+        bd: "#FFF176",
+        clickable: false,
+        label: "Proc.",
+      };
+    case "ocupado":
+      return {
+        bg: "#FFEBEE",
+        fg: "#B71C1C",
+        bd: "#EF9A9A",
+        clickable: false,
+        label: "Ocup.",
+      };
+    default:
+      return {
+        bg: "#F5F5F5",
+        fg: "#9E9E9E",
+        bd: "#E0E0E0",
+        clickable: false,
+        label: "—",
+      };
+  }
+};
+
 function Blocks() {
   const notify = useNotify();
-  const [date, setDate] = useState(() => {
-    const f = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/Bogota",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    return f.format(new Date());
-  });
-  const [available, setAvailable] = useState([]);
-  const [blocks, setBlocks] = useState([]);
+  const [date, setDate] = useState(today());
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -556,20 +650,8 @@ function Blocks() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const availRes = await API.get("/availability", { params: { date } });
-      const avail = [];
-      const curr = [];
-      for (const c of availRes.data.data.courts || []) {
-        for (const b of c.blocks || []) {
-          if (b.status === "bloqueado") {
-            curr.push({ court: c, block: b });
-          } else if (b.status === "disponible") {
-            avail.push({ court: c, block: b });
-          }
-        }
-      }
-      setAvailable(avail);
-      setBlocks(curr);
+      const r = await API.get("/availability", { params: { date } });
+      setData(r.data.data);
     } catch (e) {
       notify(errMsg(e), "error");
     } finally {
@@ -581,21 +663,31 @@ function Blocks() {
     load();
   }, [load]);
 
-  const openBlock = (court, block) => {
-    setDlg({ court, block });
-    setReason("Mantenimiento");
+  const onClickBlock = (court, block) => {
+    if (block.status === "disponible") {
+      setDlg({ court, block, mode: "block" });
+      setReason("Mantenimiento");
+    } else if (block.status === "bloqueado" && block.slot_id) {
+      setDlg({ court, block, mode: "unblock" });
+    }
   };
 
-  const submitBlock = async () => {
+  const confirmAction = async () => {
+    if (!dlg) return;
     setBusy(true);
     try {
-      await API.post("/blocks", {
-        court_id: dlg.court.id,
-        date,
-        start_time: dlg.block.start,
-        reason: reason || "Mantenimiento",
-      });
-      notify("Bloqueo creado", "success");
+      if (dlg.mode === "block") {
+        await API.post("/blocks", {
+          court_id: dlg.court.id,
+          date,
+          start_time: dlg.block.start,
+          reason: reason || "Mantenimiento",
+        });
+        notify("Horario bloqueado", "success");
+      } else {
+        await API.delete(`/blocks/${dlg.block.slot_id}`);
+        notify("Bloqueo eliminado", "success");
+      }
       setDlg(null);
       load();
     } catch (e) {
@@ -605,118 +697,159 @@ function Blocks() {
     }
   };
 
-  const unblock = async (slotId) => {
-    if (!window.confirm("¿Desbloquear este horario?")) return;
-    try {
-      await API.delete(`/blocks/${slotId}`);
-      notify("Bloqueo eliminado", "success");
-      load();
-    } catch (e) {
-      notify(errMsg(e), "error");
-    }
-  };
+  const courts = data?.courts ?? [];
 
   return (
-    <Stack spacing={3}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        alignItems="center"
-      >
-        <TextField
-          size="small"
-          type="date"
-          label="Fecha"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-        />
-        <Button onClick={load} disabled={loading}>
-          {loading ? "Cargando…" : "Actualizar"}
-        </Button>
-      </Stack>
-
-      <Box>
-        <Typography variant="h6" gutterBottom>
-          Bloqueos activos del día
-        </Typography>
-        {blocks.length === 0 ? (
-          <Typography color="text.secondary">
-            Sin bloqueos en la fecha seleccionada.
-          </Typography>
-        ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Cancha</TableCell>
-                <TableCell>Bloque</TableCell>
-                <TableCell>Motivo</TableCell>
-                <TableCell align="right">Acción</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {blocks.map((b) => (
-                <TableRow key={b.block.slot_id}>
-                  <TableCell>{b.court.name}</TableCell>
-                  <TableCell>
-                    {fmtTime(b.block.start)} – {fmtTime(b.block.end)}
-                  </TableCell>
-                  <TableCell>{b.block.reason || "—"}</TableCell>
-                  <TableCell align="right">
-                    <Button
-                      size="small"
-                      color="error"
-                      variant="outlined"
-                      onClick={() => unblock(b.block.slot_id)}
-                    >
-                      Desbloquear
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Box>
-
-      <Box>
-        <Typography variant="h6" gutterBottom>
-          Bloquear un horario
-        </Typography>
-        <Typography variant="body2" color="text.secondary" mb={1}>
-          Elige una cancha y un bloque disponible de la fecha seleccionada.
-        </Typography>
-        {available.length === 0 ? (
-          <Typography color="text.secondary">
-            No hay bloques disponibles para bloquear.
-          </Typography>
-        ) : (
-          <Stack spacing={1}>
-            {available.map((a) => (
-              <Stack
-                key={`${a.court.id}|${a.block.start}`}
-                direction="row"
-                spacing={2}
-                alignItems="center"
-              >
-                <Typography sx={{ minWidth: 90 }}>{a.court.name}</Typography>
-                <Typography sx={{ minWidth: 130 }}>
-                  {fmtTime(a.block.start)} – {fmtTime(a.block.end)}
-                </Typography>
-                <Button
-                  size="small"
-                  startIcon={<Block />}
-                  variant="outlined"
-                  color="warning"
-                  onClick={() => openBlock(a.court, a.block)}
-                >
-                  Bloquear
-                </Button>
-              </Stack>
-            ))}
+    <Stack spacing={2}>
+      <Grid container spacing={2} alignItems="center">
+        <Grid item xs={6} sm={4} md={2}>
+          <TextField
+            fullWidth
+            size="small"
+            type="date"
+            label="Fecha"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3} md={2}>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={load}
+            disabled={loading}
+            sx={{ height: 40 }}
+          >
+            {loading ? "Cargando…" : "Actualizar"}
+          </Button>
+        </Grid>
+        <Grid item xs={12} md={8}>
+          <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+            <LegendDot
+              color="#E8F5E9"
+              border="#A5D6A7"
+              label="Disponible (clic para bloquear)"
+            />
+            <LegendDot
+              color="#FFE0B2"
+              border="#FFB74D"
+              label="Bloqueado (clic para desbloquear)"
+            />
+            <LegendDot color="#FFF9C4" border="#FFF176" label="En proceso" />
+            <LegendDot color="#FFEBEE" border="#EF9A9A" label="Ocupado" />
+            <LegendDot color="#F5F5F5" border="#E0E0E0" label="Pasado" />
           </Stack>
-        )}
-      </Box>
+        </Grid>
+      </Grid>
+
+      {!data && <CircularProgress />}
+
+      {courts.map((court) => (
+        <Card key={court.id} variant="outlined">
+          <CardContent sx={{ py: 1.5 }}>
+            <Typography variant="subtitle1" fontWeight={600} mb={1}>
+              {court.name}{" "}
+              <Typography
+                component="span"
+                variant="caption"
+                color="text.secondary"
+              >
+                · {fmtDate(date)}
+              </Typography>
+            </Typography>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 0.75,
+                gridTemplateColumns: {
+                  xs: "repeat(auto-fill, minmax(74px, 1fr))",
+                  sm: "repeat(auto-fill, minmax(84px, 1fr))",
+                  md: "repeat(auto-fill, minmax(92px, 1fr))",
+                  lg: "repeat(auto-fill, minmax(100px, 1fr))",
+                },
+              }}
+            >
+              {court.blocks.map((b) => {
+                const s = blockStyle(b);
+                return (
+                  <Tooltip
+                    key={b.start}
+                    title={
+                      b.status === "bloqueado" && b.reason
+                        ? `Motivo: ${b.reason}`
+                        : s.label
+                    }
+                    arrow
+                  >
+                    <Box
+                      onClick={() => onClickBlock(court, b)}
+                      sx={{
+                        px: 0.5,
+                        py: 0.75,
+                        borderRadius: 1,
+                        border: "1px solid",
+                        borderColor: s.bd,
+                        bgcolor: s.bg,
+                        color: s.fg,
+                        textAlign: "center",
+                        cursor: s.clickable ? "pointer" : "default",
+                        transition:
+                          "transform 0.12s ease, box-shadow 0.12s ease",
+                        opacity:
+                          b.status === "pasado" || b.status === "ocupado"
+                            ? 0.65
+                            : 1,
+                        "&:hover": s.clickable
+                          ? {
+                              bgcolor: s.hover,
+                              transform: "translateY(-1px)",
+                              boxShadow: 2,
+                            }
+                          : {},
+                        userSelect: "none",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        fontWeight={700}
+                        display="block"
+                        noWrap
+                      >
+                        {fmtTime(b.start)}
+                      </Typography>
+                      <Stack
+                        direction="row"
+                        justifyContent="center"
+                        alignItems="center"
+                        spacing={0.25}
+                      >
+                        {b.status === "bloqueado" && (
+                          <Lock sx={{ fontSize: 11 }} />
+                        )}
+                        <Typography
+                          variant="caption"
+                          fontSize={10}
+                          display="block"
+                          noWrap
+                        >
+                          {s.label}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  </Tooltip>
+                );
+              })}
+            </Box>
+          </CardContent>
+        </Card>
+      ))}
+
+      {data && courts.length === 0 && (
+        <Typography color="text.secondary">
+          No hay canchas activas para mostrar.
+        </Typography>
+      )}
 
       <Dialog
         open={Boolean(dlg)}
@@ -724,22 +857,36 @@ function Blocks() {
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle>Bloquear horario</DialogTitle>
+        <DialogTitle>
+          {dlg?.mode === "block" ? "Bloquear horario" : "Desbloquear horario"}
+        </DialogTitle>
         <DialogContent>
           {dlg && (
             <Stack spacing={2} mt={1}>
               <Typography variant="body2">
-                {dlg.court.name} · {fmtDate(date)} · {fmtTime(dlg.block.start)}{" "}
-                – {fmtTime(dlg.block.end)}
+                <b>{dlg.court.name}</b> · {fmtDate(date)} ·{" "}
+                {fmtTime(dlg.block.start)} – {fmtTime(dlg.block.end)}
               </Typography>
-              <TextField
-                label="Motivo"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                fullWidth
-                multiline
-                minRows={2}
-              />
+              {dlg.mode === "block" ? (
+                <TextField
+                  label="Motivo"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  El bloque volverá a estar disponible para reservar.
+                  {dlg.block.reason && (
+                    <>
+                      {" "}
+                      Motivo actual: <b>{dlg.block.reason}</b>
+                    </>
+                  )}
+                </Typography>
+              )}
             </Stack>
           )}
         </DialogContent>
@@ -749,14 +896,38 @@ function Blocks() {
           </Button>
           <Button
             variant="contained"
-            color="warning"
-            onClick={submitBlock}
+            color={dlg?.mode === "block" ? "warning" : "primary"}
+            onClick={confirmAction}
             disabled={busy}
           >
-            {busy ? "Bloqueando…" : "Bloquear"}
+            {busy
+              ? "Procesando…"
+              : dlg?.mode === "block"
+                ? "Bloquear"
+                : "Desbloquear"}
           </Button>
         </DialogActions>
       </Dialog>
+    </Stack>
+  );
+}
+
+function LegendDot({ color, border, label }) {
+  return (
+    <Stack direction="row" alignItems="center" spacing={0.5}>
+      <Box
+        sx={{
+          width: 14,
+          height: 14,
+          borderRadius: 0.5,
+          bgcolor: color,
+          border: "1px solid",
+          borderColor: border,
+        }}
+      />
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
     </Stack>
   );
 }
