@@ -94,6 +94,7 @@ export default function Reports() {
   const [groupBy, setGroupBy] = useState("day");
   const [data, setData] = useState(null);
   const [methods, setMethods] = useState([]);
+  const [finance, setFinance] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -102,20 +103,25 @@ export default function Reports() {
     setError("");
     setData(null);
     setMethods([]);
+    setFinance(null);
     try {
       const params = { from, to };
       if (tab === "income") params.groupBy = groupBy;
       const main = API.get(`/reports/${tab}`, { params });
 
-      // Extra: métodos solo en Ingresos
+      // Extra: métodos y flujo de caja solo en Ingresos
       const extra =
         tab === "income"
-          ? API.get(`/reports/methods`, { params }).catch(() => null)
-          : Promise.resolve(null);
+          ? Promise.all([
+              API.get(`/reports/methods`, { params }).catch(() => null),
+              API.get(`/reports/finance`, { params }).catch(() => null),
+            ])
+          : Promise.resolve([null, null]);
 
       const [r, r2] = await Promise.all([main, extra]);
       setData(r.data?.data ?? null);
-      if (r2) setMethods(r2.data?.data?.methods ?? []);
+      if (r2?.[0]) setMethods(r2[0].data?.data?.methods ?? []);
+      if (r2?.[1]) setFinance(r2[1].data?.data ?? null);
     } catch (e) {
       setError(errMsg(e));
       setData(null);
@@ -292,6 +298,29 @@ export default function Reports() {
       {/* INGRESOS */}
       {!loading && data && tab === "income" && (
         <>
+          {/* KPIs DE FLUJO DE CAJA (Fase 2) */}
+          {finance && (
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="subtitle2" gutterBottom>Flujo de caja del rango</Typography>
+                <Stack direction="row" spacing={2}>
+                  <Grid item xs={6} sm={3} md={2}>
+                    <Kpi label="Ingresos netos" value={fmtMoney(finance.total_income)} />
+                  </Grid>
+                  <Grid item xs={6} sm={3} md={2}>
+                    <Kpi label="Egresos / Gastos" value={fmtMoney(finance.total_expense)} accent="error.main" />
+                  </Grid>
+                  <Grid item xs={6} sm={3} md={2}>
+                    <Kpi label="Utilidad neta" accent="success.main" value={fmtMoney(finance.net_profit)} />
+                  </Grid>
+                  <Grid item xs={6} sm={3} md={2}>
+                    <Kpi label="Margen" value={finance.margin.toFixed(1) + "%"} />
+                  </Grid>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+
           <Card sx={{ mb: 2 }}>
             <CardContent>
               <Typography variant="caption" color="text.secondary">

@@ -45,6 +45,10 @@ export const MENU = [
     icon: <BarChart />,
     roles: ["administrador", "dueno"],
   },
+  // === Fase 2 DESHABILITADA A PROPOSITO ===
+  // { label: "Gastos / Egresos", path: "/app/gastos", icon: <ListAlt />, roles: ["administrador", "dueno"] },
+  // { label: "Caja / Arqueo",   path: "/app/caja",   icon: <Checklist />, roles: ["administrador", "dueno"] },
+  // === Fin Fase 2 deshabilitada ==========================
   {
     label: "Usuarios",
     path: "/app/usuarios",

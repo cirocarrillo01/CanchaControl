@@ -122,3 +122,78 @@ export const methodsReport = async ({ from, to } = {}) => {
   );
   return { from: start, to: end, methods: rows };
 };
+
+/** RF44: egresos/gastos por rango con desglose por categoría y método. */
+export const expenseReport = async ({ from, to } = {}) => {
+  const start = from || nowBogota().date;
+  const end = to || nowBogota().date;
+
+  const [rows] = await pool.query(
+    `SELECT category,
+            method,
+            SUM(amount) AS total,
+            COUNT(*) AS count
+       FROM expenses
+      WHERE DATE(paid_at) BETWEEN ? AND ?
+      GROUP BY category, method
+      ORDER BY total DESC`,
+    [start, end],
+  );
+
+  const total_amount = rows.reduce((a, r) => a + Number(r.total || 0), 0);
+  const total_count = rows.reduce((a, r) => a + Number(r.count || 0), 0);
+
+  // Desglose solo por categoría (para el frontend)
+  const byCategory = rows.reduce((acc, r) => {
+    const existing = acc.find((x) => x.category === r.category);
+    if (existing) {
+      existing.total += Number(r.total || 0);
+      existing.count += Number(r.count || 0);
+    } else {
+      acc.push({ category: r.category, total: Number(r.total || 0), count: Number(r.count || 0) });
+    }
+    return acc;
+  }, []);
+
+  return {
+    from: start,
+    to: end,
+    total_amount,
+    total_count,
+    breakdown: rows,
+    by_category: byCategory,
+  };
+};
+
+/** RF45: flujo de caja maestro: ingresos de reservas menos egresos. */
+export const financeReport = async ({ from, to } = {}) => {
+  const start = from || nowBogota().date;
+  const end = to || nowBogota().date;
+
+  const [[income]] = await pool.query(
+    `SELECT COALESCE(SUM(CASE WHEN kind = 'devolucion' THEN -amount ELSE amount END), 0) AS total_income
+       FROM payments
+      WHERE DATE(paid_at) BETWEEN ? AND ?`,
+    [start, end],
+  );
+
+  const [[expense]] = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total_expense
+       FROM expenses
+      WHERE DATE(paid_at) BETWEEN ? AND ?`,
+    [start, end],
+  );
+
+  const totalIncome = Number(income.total_income || 0);
+  const totalExpense = Number(expense.total_expense || 0);
+  const netProfit = totalIncome - totalExpense;
+
+  return {
+    from: start,
+    to: end,
+    total_income: totalIncome,
+    total_expense: totalExpense,
+    net_profit: netProfit,
+    margin: totalIncome > 0 ? ((netProfit / totalIncome) * 100) : 0,
+  };
+};

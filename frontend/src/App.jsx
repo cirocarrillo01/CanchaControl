@@ -7,11 +7,19 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import AppLayout from "./layouts/AppLayout";
 import PublicLayout from "./layouts/PublicLayout";
 import Agenda from "./layouts/Agenda";
+// frontend/src/App.jsx
 import MyBookings from "./pages/MyBooking";
 import Bookings from "./pages/Bookings";
 import Timers from "./pages/Timers";
 import Today from "./pages/Today";
 import Reports from "./pages/Reports";
+// === Fase 2 DESHABILITADA A PROPOSITO ===
+// Comentado para evitar que el sistema intente cargar las páginas
+// de Gastos / Egresos y Caja / Arqueo, las cuales fueron inhabilitadas.
+// Para reactivar, descomentar las siguientes importaciones y rutas.
+// ===============================================
+// import Expenses from "./pages/Expenses";
+// import Cash from "./pages/Cash";
 import Users from "./pages/Users";
 import Config from "./pages/Config";
 import Login from "./pages/Login";
@@ -97,6 +105,24 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 />
+                // === Fase 2 DESHABILITADA A PROPOSITO ===
+                // Rutas comentadas para evitar cargar Gastos / Egresos y Caja / Arqueo.
+//                <Route
+//                  path="gastos"
+//                  element={
+//                    <ProtectedRoute roles={["administrador", "dueno"]}>
+//                      <Expenses />
+//                    </ProtectedRoute>
+//                  }
+//                />
+//                <Route
+//                  path="caja"
+//                  element={
+//                    <ProtectedRoute roles={["administrador", "dueno"]}>
+//                      <Cash />
+//                    </ProtectedRoute>
+//                  }
+/>
                 <Route
                   path="usuarios"
                   element={
