@@ -49,7 +49,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
   if (id === req.user.id)
     throw new AppError(
       400,
-      "Para eliminarte a ti mismo usa la opción 'Eliminar mi cuenta' en tu perfil.",
+      "No puedes eliminar tu propia cuenta. Otro administrador debe realizar esta acción.",
     );
 
   const target = await User.findById(id);

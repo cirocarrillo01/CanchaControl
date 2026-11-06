@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) NOT NULL UNIQUE,
   phone VARCHAR(20) NULL,
   password VARCHAR(255) NOT NULL,
-  role ENUM('administrador','cliente','dueno','vigilancia') NOT NULL DEFAULT 'cliente',
+  role ENUM('administrador','cliente','auditor','vigilancia') NOT NULL DEFAULT 'cliente',
   active TINYINT(1) NOT NULL DEFAULT 1,
   failed_attempts INT NOT NULL DEFAULT 0,
   locked_until DATETIME NULL,
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS holidays (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- RESERVAS (RF14-RF30, RF44): una fila por turno (puede abarcar varios bloques consecutivos).
--- status: procesando (reserva en línea sin confirmar) -> ocupada (aprobada por admin) -> en_curso -> finalizada | cancelada | vencida
+-- status: procesando -> ocupada -> en_curso -> finalizada | cancelada | vencida | no_show | reembolsada
 -- timer_*: la hora de fin vive en BD para que el cronómetro sobreviva a recargas (RNF11).
 CREATE TABLE IF NOT EXISTS bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   `date` DATE NOT NULL,
   start_time TIME NOT NULL,
   duration_blocks TINYINT NOT NULL DEFAULT 1,
-  status ENUM('procesando','ocupada','en_curso','finalizada','cancelada','vencida','reembolsada') NOT NULL DEFAULT 'procesando',
+  status ENUM('procesando','ocupada','en_curso','finalizada','cancelada','vencida','no_show','reembolsada') NOT NULL DEFAULT 'procesando',
   price_total DECIMAL(10,0) NOT NULL DEFAULT 0,
   refunded_amount DECIMAL(10,0) NOT NULL DEFAULT 0,
   expires_at DATETIME NULL,
@@ -194,3 +194,4 @@ CREATE TABLE IF NOT EXISTS audit_log (
   INDEX idx_audit_entity (entity, entity_id),
   CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

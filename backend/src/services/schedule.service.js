@@ -79,20 +79,28 @@ export const loadHolidays = async (db = pool) => {
  */
 export const expireStale = async () => {
   const now = nowBogota();
+  const settings = await getSettings();
+  const block = resolveSpan(settings.block_minutes);
+  const nowSec = toMin(now.time) * 60 + Number(now.time.split(":")[2] || 0);
 
   const [rows] = await pool.query(
-    `SELECT id, date, start_time, expires_at
-       FROM bookings
-      WHERE status = 'procesando'
+    `SELECT b.id, b.date, b.start_time, b.expires_at, b.duration_blocks,
+            COALESCE((SELECT SUM(CASE WHEN p.kind = 'devolucion' THEN -p.amount ELSE p.amount END)
+                      FROM payments p WHERE p.booking_id = b.id), 0) AS net_paid
+       FROM bookings b
+      WHERE b.status = 'procesando'
         AND (
-          (expires_at IS NOT NULL AND expires_at < ?)
-          OR date < ?
-          OR (date = ? AND start_time <= ?)
+          (b.expires_at IS NOT NULL AND b.expires_at < ?)
+          OR b.date < ?
+          OR (b.date = ? AND TIME_TO_SEC(b.start_time) + b.duration_blocks * ? * 60 <= ?)
         )`,
-    [now.datetime, now.date, now.date, now.time],
+    [now.datetime, now.date, now.date, block, nowSec],
   );
 
   for (const b of rows) {
+    // Si ya tiene pagos registrados, no expirar: el dinero quedaría huérfano.
+    if (Number(b.net_paid ?? 0) > 0) continue;
+
     await withTransaction(async (conn) => {
       await conn.query("DELETE FROM court_slots WHERE booking_id = ?", [b.id]);
       await conn.query(
@@ -123,7 +131,7 @@ export const autoFinalize = async () => {
   const nowSec = toMin(now.time) * 60 + Number(now.time.split(":")[2] || 0);
 
   const [rows] = await pool.query(
-    `SELECT id, date, start_time, duration_blocks, extra_minutes
+    `SELECT id, date, start_time, timer_ends_at, duration_blocks, extra_minutes, checked_in_at, timer_started_at
        FROM bookings
       WHERE status IN ('ocupada','en_curso')
         AND date <= ?`,
@@ -131,27 +139,39 @@ export const autoFinalize = async () => {
   );
 
   for (const b of rows) {
-    const startMin = toMin(b.start_time);
-    const endMin =
-      startMin + b.duration_blocks * block + (b.extra_minutes ?? 0);
-    const endSec = endMin * 60;
+    // Si el cronómetro se inició tarde, usar timer_ends_at como hora real de fin
+    let endMin;
+    if (b.timer_ends_at) {
+      const timeStr = String(b.timer_ends_at);
+      const timePart = timeStr.includes(" ") ? timeStr.split(" ")[1] : timeStr;
+      const [h, m, s] = timePart.split(":").map(Number);
+      endMin = h * 60 + m + (s || 0) / 60;
+    } else {
+      const startMin = toMin(b.start_time);
+      endMin = startMin + b.duration_blocks * block + (b.extra_minutes ?? 0);
+    }
+    const endSec = Math.floor(endMin * 60);
 
     const shouldFinalize =
       b.date < now.date || (b.date === now.date && nowSec >= endSec);
     if (!shouldFinalize) continue;
 
+    // Si nunca se hizo check-in ni se inició el timer, es no_show (no se jugó)
+    const finalStatus =
+      !b.checked_in_at && !b.timer_started_at ? "no_show" : "finalizada";
+
     await withTransaction(async (conn) => {
       const [r] = await conn.query(
         `UPDATE bookings
-           SET status = 'finalizada', finished_at = ?
+           SET status = ?, finished_at = ?
          WHERE id = ? AND status IN ('ocupada','en_curso')`,
-        [now.datetime, b.id],
+        [finalStatus, now.datetime, b.id],
       );
       if (r.affectedRows > 0) {
         await logAction(conn, {
           entity: "booking",
           entityId: b.id,
-          action: "finalizada_auto",
+          action: finalStatus === "no_show" ? "no_show_auto" : "finalizada_auto",
           detail: {
             date: b.date,
             start_time: b.start_time,
@@ -162,6 +182,51 @@ export const autoFinalize = async () => {
     });
   }
 };
+
+/**
+ * Auto-inicia reservas cuya hora de inicio ya llegó y aún están 'ocupada'.
+ * Cambia 'ocupada' → 'en_curso', setea timer_started_at y timer_ends_at.
+ * Corre cada minuto desde server.js junto a autoFinalize.
+ */
+export const autoStartTimers = async () => {
+  const now = nowBogota();
+  const settings = await getSettings();
+  const block = resolveSpan(settings.block_minutes);
+
+  const [rows] = await pool.query(
+    `SELECT id, date, start_time, duration_blocks, extra_minutes
+       FROM bookings
+      WHERE status = 'ocupada'
+        AND date = ?
+        AND start_time <= ?`,
+    [now.date, now.time],
+  );
+
+  for (const b of rows) {
+    const startMin = toMin(b.start_time);
+    const endMin = startMin + b.duration_blocks * block + (b.extra_minutes ?? 0);
+    const ends = hhmmss(endMin);
+
+    await pool.query(
+      `UPDATE bookings
+          SET status = 'en_curso',
+              timer_started_at = CONCAT(?, ' ', ?),
+              timer_ends_at = CONCAT(?, ' ', ?)
+        WHERE id = ? AND status = 'ocupada'`,
+      [b.date, b.start_time, b.date, ends, b.id],
+    );
+  }
+};
+
+function nowSec(now) {
+  return toMin(now.time) * 60 + Number(now.time.split(":")[2] || 0);
+}
+
+function hhmmss(totalMin) {
+  const h = Math.floor(totalMin / 60) % 24;
+  const m = totalMin % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+}
 
 /** RF09-RF13: disponibilidad pública por día. */
 export const getAvailability = async ({ date, courtId, viewer }) => {

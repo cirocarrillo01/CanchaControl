@@ -1,9 +1,14 @@
 // tests/availability.integration.test.js — Pruebas de integración de API de disponibilidad
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import http from "http";
 import { app } from "../src/server.js";
 
 jest.setTimeout(20000);
+
+const futureDate = (offset = 1) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
 
 let server;
 
@@ -54,7 +59,7 @@ function apiRequest(method, path, body = null, token = null) {
 describe("Availability API (integración)", () => {
   it("GET /api/availability público → 200", async () => {
     if (!server) return;
-    const res = await apiRequest("GET", "/availability?date=2026-11-02");
+    const res = await apiRequest("GET", `/availability?date=${futureDate(2)}`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data).toHaveProperty("date");

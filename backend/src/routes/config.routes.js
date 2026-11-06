@@ -18,7 +18,7 @@ router.delete("/courts/:id", ...admin, c.deleteCourt);
 router.get("/settings", c.readSettings); // Público
 router.put("/settings", ...admin, c.updateSettings);
 
-router.get("/rates", protect, authorize("administrador", "dueno"), c.listRates);
+router.get("/rates", protect, authorize("administrador", "auditor"), c.listRates);
 router.post("/rates", ...admin, c.createRate);
 router.put("/rates/:id", ...admin, c.updateRate);
 router.delete("/rates/:id", ...admin, c.deleteRate);
@@ -28,3 +28,4 @@ router.post("/holidays", ...admin, c.createHoliday);
 router.delete("/holidays/:id", ...admin, c.deleteHoliday);
 
 export default router;
+

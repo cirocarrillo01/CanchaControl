@@ -1,5 +1,4 @@
 // tests/auth.integration.test.js — Pruebas de integración de API de autenticación
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import http from "http";
 import { app } from "../src/server.js";
 

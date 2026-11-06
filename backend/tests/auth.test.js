@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from "jest";
-import http from "http";
-
 // Pruebas de integración que requieren BD de prueba.
 // Se ejecutan solo si hay MySQL disponible.
+
+import http from "http";
 
 jest.setTimeout(15000);
 

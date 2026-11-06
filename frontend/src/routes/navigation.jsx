@@ -11,7 +11,7 @@ import {
   Lock,
 } from "@mui/icons-material";
 
-const ALL = ["administrador", "cliente", "dueno", "vigilancia"];
+const ALL = ["administrador", "cliente", "auditor", "vigilancia"];
 
 export const MENU = [
   { label: "Agenda", path: "/app/agenda", icon: <CalendarMonth />, roles: ALL },
@@ -25,7 +25,7 @@ export const MENU = [
     label: "Reservas",
     path: "/app/reservas",
     icon: <ListAlt />,
-    roles: ["administrador", "dueno"],
+    roles: ["administrador", "auditor"],
   },
   {
     label: "Cronómetros",
@@ -43,12 +43,20 @@ export const MENU = [
     label: "Reportes",
     path: "/app/reportes",
     icon: <BarChart />,
-    roles: ["administrador", "dueno"],
+    roles: ["administrador", "auditor"],
   },
-  // === Fase 2 DESHABILITADA A PROPOSITO ===
-  // { label: "Gastos / Egresos", path: "/app/gastos", icon: <ListAlt />, roles: ["administrador", "dueno"] },
-  // { label: "Caja / Arqueo",   path: "/app/caja",   icon: <Checklist />, roles: ["administrador", "dueno"] },
-  // === Fin Fase 2 deshabilitada ==========================
+  {
+    label: "Gastos / Egresos",
+    path: "/app/gastos",
+    icon: <ListAlt />,
+    roles: ["administrador", "auditor"],
+  },
+  {
+    label: "Caja / Arqueo",
+    path: "/app/caja",
+    icon: <Checklist />,
+    roles: ["administrador", "auditor"],
+  },
   {
     label: "Usuarios",
     path: "/app/usuarios",
@@ -68,3 +76,4 @@ export const MENU = [
     roles: ALL,
   },
 ];
+

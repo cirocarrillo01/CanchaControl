@@ -1,5 +1,4 @@
 // tests/domain.validator.test.js — Pruebas unitarias de validadores de dominio
-import { describe, it, expect } from "jest";
 import {
   validateCourt,
   validateRate,

@@ -1,5 +1,5 @@
 // frontend/src/pages/Config.jsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Box,

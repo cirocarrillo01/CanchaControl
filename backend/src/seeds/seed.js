@@ -32,10 +32,10 @@ const USERS = [
   },
   {
     name: "Dueño Cancha",
-    email: "dueno@canchacontrol.com",
+    email: "auditor@canchacontrol.com",
     phone: "3002222222",
-    role: "dueno",
-    password: "Dueno123*",
+    role: "auditor",
+    password: "auditor123*",
   },
   {
     name: "Vigilancia",
@@ -233,3 +233,4 @@ run().catch((e) => {
   console.error("❌ Seed falló:", e);
   process.exit(1);
 });
+

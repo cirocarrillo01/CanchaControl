@@ -62,6 +62,14 @@ describe("refundBooking (integración)", () => {
   beforeAll(async () => {
     await ensureSchema();
     await seedMinimal();
+
+    // Guarda de seguridad: solo borrar en bases *_test
+    if (!process.env.DB_NAME?.endsWith("_test")) {
+      throw new Error(
+        "Estas pruebas solo corren contra bases *_test. Abortando para proteger datos de producción.",
+      );
+    }
+
     // Limpia datos residuales de ejecuciones previas para aislar los tests
     await pool.query("DELETE FROM payments");
     await pool.query("DELETE FROM court_slots WHERE booking_id IS NOT NULL");

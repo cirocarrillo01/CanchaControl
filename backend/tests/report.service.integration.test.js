@@ -1,5 +1,4 @@
 // tests/report.service.integration.test.js — Pruebas de integración de report.service
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import { pool } from "../src/config/db.js";
 import {
   incomeReport,
@@ -9,7 +8,13 @@ import {
 import { methodsReport } from "../src/services/report.service.js";
 jest.setTimeout(20000);
 
-const today = "2026-11-01";
+const futureDate = (offset = 10) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
+
+const today = futureDate();
 
 async function ensureSchema() {
   const [tables] = await pool.query("SHOW TABLES LIKE 'payments'");

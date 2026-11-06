@@ -101,7 +101,7 @@ export default function Today() {
               </TableRow>
             )}
             {rows.map((b) => {
-              const st = b.effective_status ?? b.status;
+              const st = b.status;
               const endLabel = b.end_time ? fmtTime(b.end_time) : "—";
               const canCheckIn =
                 !b.checked_in_at && ["ocupada", "en_curso"].includes(st);

@@ -1,5 +1,4 @@
 // tests/reports.integration.test.js — Pruebas de integración de API de reportes
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import http from "http";
 import { app } from "../src/server.js";
 
@@ -59,8 +58,14 @@ function apiRequest(method, path, body = null, token = null) {
   });
 }
 
+const futureDate = (offset = 10) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
+
 describe("Reports API (integración)", () => {
-  const today = "2026-11-01";
+  const today = futureDate();
 
   it("GET /api/reports/income sin token → 401", async () => {
     if (!server) return;

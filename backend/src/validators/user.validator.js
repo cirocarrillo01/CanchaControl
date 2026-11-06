@@ -7,7 +7,7 @@ const passwordError = (p) =>
     ? "La contraseña debe tener mínimo 8 caracteres, con letras y números"
     : null;
 
-export const ROLE_LIST = ["administrador", "cliente", "dueno", "vigilancia"];
+export const ROLE_LIST = ["administrador", "cliente", "auditor", "vigilancia"];
 
 /** Normaliza active → boolean. Acepta true/false, 1/0, "1"/"0", null, undefined. */
 const normalizeActive = (v) => {
@@ -94,3 +94,4 @@ export const validateUserAdmin = (b, create = false) => {
   }
   return { error: null, data };
 };
+

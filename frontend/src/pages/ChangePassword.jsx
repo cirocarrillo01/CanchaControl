@@ -100,7 +100,7 @@ export default function ChangePassword() {
     }
   };
 
-  const canDelete = user?.role === "cliente" || user?.role === "administrador";
+  const canDelete = user?.role === "cliente";
 
   return (
     <Box sx={{ maxWidth: 500, mx: "auto", mt: 4 }}>

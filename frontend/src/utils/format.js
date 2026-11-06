@@ -3,7 +3,7 @@
 export const homeFor = (role) => {
   switch (role) {
     case "administrador":
-    case "dueno":
+    case "auditor":
       return "/app/reservas";
     case "vigilancia":
       return "/app/hoy";
@@ -16,7 +16,7 @@ export const homeFor = (role) => {
 export const roleLabel = (role) =>
   ({
     administrador: "Administrador",
-    dueno: "Dueño",
+    auditor: "Auditor",
     vigilancia: "Vigilancia",
     cliente: "Cliente",
   })[role] ?? role;
@@ -29,6 +29,8 @@ export const statusLabel = (status) =>
     finalizada: "Finalizada",
     cancelada: "Cancelada",
     vencida: "Vencida",
+    no_show: "No Show",
+    reembolsada: "Reembolsada",
   })[status] ?? status;
 
 export const fmtMoney = (n) =>
@@ -78,3 +80,5 @@ export const fmtPeriod = (period, groupBy = "day") => {
   }
   return fmtDate(period);
 };
+
+

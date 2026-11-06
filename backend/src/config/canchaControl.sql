@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) NOT NULL UNIQUE,
   phone VARCHAR(20) NULL,
   password VARCHAR(255) NOT NULL,
-  role ENUM('administrador','cliente','dueno','vigilancia') NOT NULL DEFAULT 'cliente',
+  role ENUM('administrador','cliente','auditor','vigilancia') NOT NULL DEFAULT 'cliente',
   active TINYINT(1) NOT NULL DEFAULT 1,
   failed_attempts INT NOT NULL DEFAULT 0,
   locked_until DATETIME NULL,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   `date` DATE NOT NULL,
   start_time TIME NOT NULL,
   duration_blocks TINYINT NOT NULL DEFAULT 1,
-  status ENUM('procesando','ocupada','en_curso','finalizada','cancelada','vencida') NOT NULL DEFAULT 'procesando',
+  status ENUM('procesando','ocupada','en_curso','finalizada','cancelada','vencida','no_show','reembolsada') NOT NULL DEFAULT 'procesando',
   price_total DECIMAL(10,0) NOT NULL DEFAULT 0,
   expires_at DATETIME NULL,
   timer_started_at DATETIME NULL,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS court_slots (
 CREATE TABLE IF NOT EXISTS payments (
   id INT AUTO_INCREMENT PRIMARY KEY,
   booking_id INT NOT NULL,
-  kind ENUM('reserva','tiempo_adicional') NOT NULL DEFAULT 'reserva',
+  kind ENUM('reserva','tiempo_adicional','devolucion') NOT NULL DEFAULT 'reserva',
   method ENUM('efectivo','transferencia') NOT NULL DEFAULT 'efectivo',
   amount DECIMAL(10,0) NOT NULL,
   extra_minutes INT NULL,
@@ -143,3 +143,4 @@ CREATE TABLE IF NOT EXISTS audit_log (
   INDEX idx_audit_entity (entity, entity_id),
   CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

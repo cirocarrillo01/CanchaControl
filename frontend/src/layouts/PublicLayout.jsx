@@ -1,6 +1,6 @@
 // frontend/src/layouts/PublicLayout.jsx
 import { Link as RouterLink, Outlet, useNavigate } from "react-router-dom";
-import { AppBar, Box, Button, Toolbar, Typography } from "@mui/material";
+import { AppBar, Box, Button, Toolbar, Typography, Container } from "@mui/material";
 import {
   Login as LoginIcon,
   PersonAdd,
@@ -15,7 +15,7 @@ export default function PublicLayout() {
   const navigate = useNavigate();
 
   return (
-    <Box sx={{ minHeight: "100vh" }}>
+    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <AppBar position="sticky" color="primary">
         <Toolbar>
           <SportsSoccer sx={{ mr: 1 }} />
@@ -59,8 +59,18 @@ export default function PublicLayout() {
           )}
         </Toolbar>
       </AppBar>
-      <Box sx={{ p: { xs: 1.5, md: 3 }, maxWidth: 1300, mx: "auto" }}>
+      
+      <Box sx={{ p: { xs: 1.5, md: 3 }, width: "100%", flexGrow: 1 }}>
         <Outlet />
+      </Box>
+
+      {/* Footer solo en página pública */}
+      <Box component="footer" sx={{ py: 3, px: 2, mt: 'auto', backgroundColor: '#f5f5f5', textAlign: 'center' }}>
+        <Container maxWidth="sm">
+          <Typography variant="body2" color="text.secondary">
+            © 2026 CanchaControl - Gestión Deportiva Inteligente
+          </Typography>
+        </Container>
       </Box>
     </Box>
   );

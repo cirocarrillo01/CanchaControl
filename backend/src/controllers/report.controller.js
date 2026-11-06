@@ -1,75 +1,55 @@
 // backend/src/controllers/report.controller.js
+import * as reportService from "../services/report.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import * as reports from "../services/report.service.js";
-import * as expenseSvc from "../services/expense.service.js";
-import * as cashSvc from "../services/cash.service.js";
-
-// ============ REPORTES ============
+import { pool } from "../config/db.js";
 
 export const income = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await reports.incomeReport(req.query) });
+  const data = await reportService.incomeReport(req.query);
+  res.json({ success: true, data });
 });
+
 export const usage = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await reports.usageReport(req.query) });
+  const data = await reportService.usageReport(req.query);
+  res.json({ success: true, data });
 });
+
 export const status = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await reports.statusReport(req.query) });
+  const data = await reportService.statusReport(req.query);
+  res.json({ success: true, data });
 });
+
 export const methods = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await reports.methodsReport(req.query) });
+  const data = await reportService.methodsReport(req.query);
+  res.json({ success: true, data });
 });
+
 export const expenses = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await reports.expenseReport(req.query) });
+  const data = await reportService.expenseReport(req.query);
+  res.json({ success: true, data });
 });
+
 export const finance = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await reports.financeReport(req.query) });
-});
-
-// ============ GASTOS (CRUD) ============
-
-export const listExpenses = asyncHandler(async (req, res) => {
-  const data = await expenseSvc.listExpenses(req.query);
-  res.json({ success: true, ...data });
-});
-
-export const createExpense = asyncHandler(async (req, res) => {
-  const data = await expenseSvc.createExpense(req.body, req.user);
-  res.status(201).json({ success: true, data });
-});
-
-export const updateExpense = asyncHandler(async (req, res) => {
-  const data = await expenseSvc.updateExpense(Number(req.params.id), req.body, req.user);
+  const data = await reportService.financeReport(req.query);
   res.json({ success: true, data });
 });
 
-export const deleteExpense = asyncHandler(async (req, res) => {
-  const data = await expenseSvc.deleteExpense(Number(req.params.id), req.user);
-  res.json({ success: true, data });
-});
+export const getDeadSlots = asyncHandler(async (req, res) => {
+  const { month, year } = req.query;
+  const [rows] = await pool.query(
+    `
+      SELECT 
+          DAY(slot_date) as day,
+          slot_start,
+          COUNT(*) as frequency
+      FROM court_slots
+      WHERE MONTH(slot_date) = ? AND YEAR(slot_date) = ?
+      AND booking_id IS NULL
+      GROUP BY day, slot_start
+      ORDER BY frequency DESC
+      LIMIT 10
+  `,
+    [month || new Date().getMonth() + 1, year || new Date().getFullYear()],
+  );
 
-export const expenseSummary = asyncHandler(async (req, res) => {
-  const data = await expenseSvc.expenseSummary(req.query);
-  res.json({ success: true, data });
-});
-
-// ============ CAJA DIARIA ============
-
-export const getOpenCash = asyncHandler(async (req, res) => {
-  const data = await cashSvc.getOpenCash(req.query.open_date);
-  res.json({ success: true, data });
-});
-
-export const openCash = asyncHandler(async (req, res) => {
-  const data = await cashSvc.openCash(req.body, req.user);
-  res.status(201).json({ success: true, data });
-});
-
-export const closeCash = asyncHandler(async (req, res) => {
-  const data = await cashSvc.closeCash(req.body, req.user);
-  res.json({ success: true, data });
-});
-
-export const cashFlow = asyncHandler(async (req, res) => {
-  const data = await cashSvc.cashFlow(req.query);
-  res.json({ success: true, data });
+  res.status(200).json({ success: true, data: rows });
 });

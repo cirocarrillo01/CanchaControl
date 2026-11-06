@@ -1,9 +1,14 @@
 // tests/bookings.integration.test.js — Pruebas de integración de API de reservas
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import http from "http";
 import { app } from "../src/server.js";
 
 jest.setTimeout(20000);
+
+const futureDate = (offset = 1) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
 
 let server;
 let adminToken;
@@ -85,7 +90,7 @@ describe("Bookings API (integración)", () => {
 
   it("GET /api/availability público → 200", async () => {
     if (!server) return;
-    const res = await apiRequest("GET", "/availability?date=2026-11-02");
+    const res = await apiRequest("GET", `/availability?date=${futureDate(2)}`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data.courts)).toBe(true);
@@ -95,7 +100,7 @@ describe("Bookings API (integración)", () => {
     if (!server) return;
     const res = await apiRequest("POST", "/bookings", {
       court_id: 1,
-      date: "2026-11-02",
+      date: futureDate(2),
       start_time: "10:00:00",
     });
     expect(res.status).toBe(401);
@@ -109,7 +114,7 @@ describe("Bookings API (integración)", () => {
 
   it("GET /api/reports/income con token admin → 200", async () => {
     if (!server || !adminToken) return;
-    const res = await apiRequest("GET", "/reports/income?from=2026-11-01&to=2026-11-01", null, adminToken);
+    const res = await apiRequest("GET", `/reports/income?from=${futureDate(10)}&to=${futureDate(10)}`, null, adminToken);
     expect([200, 500]).toContain(res.status); // 500 si hay error de BD, 200 si OK
     if (res.status === 200) {
       expect(res.body.success).toBe(true);

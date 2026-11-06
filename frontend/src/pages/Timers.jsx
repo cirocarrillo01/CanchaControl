@@ -48,13 +48,15 @@ export default function Timers() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
+    // NO limpiamos error aquí para que se vea si falla
     try {
       const r = await API.get("/bookings/timers");
       setData(r.data.data ?? []);
       setLoadedAt(Date.now());
+      setError(""); // Solo limpiamos error si tuvo éxito
     } catch (e) {
       setError(errMsg(e));
+      // IMPORTANTE: NO hacemos setData([]) — conservamos último estado bueno
     } finally {
       setLoading(false);
     }
@@ -132,29 +134,37 @@ export default function Timers() {
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+          Error al cargar cronómetros: {error}. Las canchas pueden estar operando pero el sistema no las muestra.
         </Alert>
       )}
 
       {loading && data.length === 0 ? (
         <CircularProgress />
       ) : (
-        <Stack direction="row" flexWrap="wrap" gap={2}>
-          {data.length === 0 && (
-            <Typography color="text.secondary">
-              No hay canchas activas.
+        <>
+          {data.length > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: "block" }}>
+              {data.filter(c => c.court_status === "activa").length} activa(s) ·{" "}
+              {data.filter(c => c.court_status === "mantenimiento").length} en mantenimiento
             </Typography>
           )}
-          {data.map((item) => (
-            <CourtCard
-              key={item.court_id}
-              item={item}
-              elapsed={elapsed}
-              onAddNext={() => openExtension("next", item)}
-              onExtra={() => openExtension("extra", item)}
-            />
-          ))}
-        </Stack>
+          <Stack direction="row" flexWrap="wrap" gap={2}>
+            {data.length === 0 && !error && (
+              <Typography color="text.secondary">
+                No hay canchas activas configuradas.
+              </Typography>
+            )}
+            {data.map((item) => (
+              <CourtCard
+                key={item.court_id}
+                item={item}
+                elapsed={elapsed}
+                onAddNext={() => openExtension("next", item)}
+                onExtra={() => openExtension("extra", item)}
+              />
+            ))}
+          </Stack>
+        </>
       )}
 
       <Dialog
@@ -252,6 +262,7 @@ function CourtCard({ item, elapsed, onAddNext, onExtra }) {
   const isUpcoming = item.phase === "upcoming";
   const isActive = item.phase === "active";
   const isFinished = item.phase === "finished";
+  const isMaintenance = item.court_status === "mantenimiento";
   const showCountdown = (isUpcoming || isActive) && item.is_today;
 
   const remaining = Math.max(
@@ -267,7 +278,7 @@ function CourtCard({ item, elapsed, onAddNext, onExtra }) {
   else if (isActive && remaining < 5 * 60) color = "warning";
 
   const nextFree = Boolean(item.next_block?.free);
-  const canExtend = (isActive || isFinished) && item.booking;
+  const canExtend = (isActive || isFinished) && item.booking && !isMaintenance;
 
   const progress =
     isActive && item.total_seconds
@@ -287,7 +298,10 @@ function CourtCard({ item, elapsed, onAddNext, onExtra }) {
           <Typography variant="h6" fontWeight={600}>
             {item.court_name}
           </Typography>
-          {!isFree && (
+          {isMaintenance && (
+            <Chip size="small" label="Mantenimiento" color="warning" />
+          )}
+          {!isFree && !isMaintenance && (
             <Chip
               size="small"
               label={
@@ -303,6 +317,12 @@ function CourtCard({ item, elapsed, onAddNext, onExtra }) {
             />
           )}
         </Stack>
+
+        {isMaintenance && (
+          <Typography color="text.secondary" align="center" sx={{ my: 3 }}>
+            Cancha en mantenimiento — sin turnos
+          </Typography>
+        )}
 
         {isFree && (
           <Typography color="text.secondary" align="center" sx={{ my: 3 }}>

@@ -6,12 +6,17 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Stack,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
 import API, { errMsg } from "../api/axios";
@@ -50,18 +55,30 @@ export default function MyBookings() {
     load();
   }, [load]);
 
-  const cancel = async (b) => {
-    const reason = window.prompt(
-      "Motivo de la cancelación:",
-      "Ya no puedo asistir",
-    );
-    if (reason === null) return;
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelBooking, setCancelBooking] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelBusy, setCancelBusy] = useState(false);
+
+  const openCancel = (b) => {
+    setCancelBooking(b);
+    setCancelReason("");
+    setCancelOpen(true);
+  };
+
+  const submitCancel = async () => {
+    setCancelBusy(true);
     try {
-      await API.post(`/bookings/${b.id}/cancel`, { reason });
+      await API.post(`/bookings/${cancelBooking.id}/cancel`, {
+        reason: cancelReason || "Cancelada por el cliente",
+      });
       notify("Reserva cancelada", "success");
+      setCancelOpen(false);
       load();
     } catch (e) {
       notify(errMsg(e), "error");
+    } finally {
+      setCancelBusy(false);
     }
   };
 
@@ -115,14 +132,27 @@ export default function MyBookings() {
                 </TableCell>
                 <TableCell align="right">{fmtMoney(b.price_total)}</TableCell>
                 <TableCell>
-                  {["procesando", "ocupada"].includes(b.status) && (
+                  {["procesando", "ocupada"].includes(b.status) && b.payment_status === "pendiente" && (
                     <Button
                       size="small"
                       color="error"
-                      onClick={() => cancel(b)}
+                      onClick={() => openCancel(b)}
                     >
                       Cancelar
                     </Button>
+                  )}
+                  {b.payment_status !== "pendiente" && (
+                    <Button
+                      size="small"
+                      color="default"
+                      disabled
+                      title="Contacta al administrador para solicitar un reembolso"
+                    >
+                      Contactar admin
+                    </Button>
+                  )}
+                  {["cancelada", "finalizada", "vencida", "no_show", "reembolsada"].includes(b.status) && (
+                    <Chip size="small" label={b.status} color="default" variant="outlined" />
                   )}
                 </TableCell>
               </TableRow>
@@ -130,6 +160,57 @@ export default function MyBookings() {
           </TableBody>
         </Table>
       )}
+
+      {/* Modal de cancelación para Cliente */}
+      <Dialog
+        open={cancelOpen}
+        onClose={() => (cancelBusy ? null : setCancelOpen(false))}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle sx={{ bgcolor: 'error.main', color: 'white', mb: 2 }}>
+          Cancelar Reserva
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Alert severity="warning">
+              ¿Estás seguro de cancelar esta reserva? El turno quedará disponible nuevamente.
+            </Alert>
+
+            <Box sx={{ p: 2, bgcolor: '#f9f9f9', borderRadius: 1 }}>
+              <Typography variant="body2"><b>Reserva:</b> {cancelBooking?.code}</Typography>
+              <Typography variant="body2"><b>Cancha:</b> {cancelBooking?.court_name}</Typography>
+              <Typography variant="body2"><b>Fecha:</b> {fmtDate(cancelBooking?.date)} · {fmtTime(cancelBooking?.start_time)}</Typography>
+              <Typography variant="body2"><b>Total:</b> {fmtMoney(cancelBooking?.price_total)}</Typography>
+            </Box>
+
+            <TextField
+              label="Motivo de la cancelación"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+              autoFocus
+              placeholder="Ej: Ya no podré asistir"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setCancelOpen(false)} disabled={cancelBusy}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={submitCancel}
+            disabled={cancelBusy}
+            startIcon={cancelBusy ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {cancelBusy ? "Procesando…" : "Aceptar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

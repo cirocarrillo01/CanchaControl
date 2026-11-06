@@ -8,8 +8,10 @@ import userRoutes from "./routes/user.routes.js";
 import configRoutes from "./routes/config.routes.js";
 import bookingRoutes from "./routes/booking.routes.js";
 import reportRoutes from "./routes/report.routes.js";
+import expenseRoutes from "./routes/expense.routes.js";
+import cashRoutes from "./routes/cash.routes.js";
 import { errorHandler, notFound } from "./middlewares/error.middleware.js";
-import { expireStale, autoFinalize } from "./services/schedule.service.js";
+import { expireStale, autoFinalize, autoStartTimers } from "./services/schedule.service.js";
 import { nowBogota } from "./utils/time.js";
 
 if (!process.env.JWT_SECRET) {
@@ -52,7 +54,6 @@ if (process.env.NODE_ENV === "development") {
 }
 
 app.use((req, res, next) => {
-  res.setHeader("X-API-Version", "2.1.0-client-booking-fixed");
   next();
 });
 
@@ -61,6 +62,8 @@ app.use("/api/users", userRoutes);
 app.use("/api", bookingRoutes);
 app.use("/api", configRoutes);
 app.use("/api", reportRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/cash", cashRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -77,17 +80,21 @@ const startServer = async () => {
   try {
     await testConnection();
 
-    // Vencimiento de reservas en línea (RF29)
+    // Vencimiento, inicio y finalización de reservas (RF29, autoStartTimers, autoFinalize)
+    // Ejecutados en orden dentro de un solo ciclo para evitar race conditions:
+    //  1) expireStale: procesando → vencida (si no hay pagos)
+    //  2) autoStartTimers: ocupada → en_curso (al llegar start_time)
+    //  3) autoFinalize: ocupada/en_curso → finalizada/no_show (al terminar el tiempo)
     setInterval(
-      () =>
-        expireStale().catch((e) => console.error("expireStale:", e.message)),
-      60_000,
-    );
-
-    // ← NUEVO: auto-finalizar reservas cuyo tiempo ya terminó
-    setInterval(
-      () =>
-        autoFinalize().catch((e) => console.error("autoFinalize:", e.message)),
+      async () => {
+        try {
+          await expireStale();
+          await autoStartTimers();
+          await autoFinalize();
+        } catch (e) {
+          console.error("schedule jobs:", e.message);
+        }
+      },
       60_000,
     );
 

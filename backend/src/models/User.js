@@ -79,7 +79,7 @@ export const User = {
        ORDER BY
          CASE role
            WHEN 'administrador' THEN 1
-           WHEN 'dueno' THEN 2
+           WHEN 'auditor' THEN 2
            WHEN 'vigilancia' THEN 3
            WHEN 'cliente' THEN 4
            ELSE 5
@@ -202,3 +202,4 @@ export const User = {
 };
 
 export default User;
+

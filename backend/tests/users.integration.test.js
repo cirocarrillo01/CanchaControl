@@ -1,5 +1,4 @@
 // tests/users.integration.test.js — Pruebas de integración de API de usuarios
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import http from "http";
 import { app } from "../src/server.js";
 
@@ -94,8 +93,8 @@ describe("Users API (integración)", () => {
       expect(res.status).toBe(403);
     }
   });
-});
-it("PUT /api/users/:id cambia active sin 500 (bug fix)", async () => {
+
+  it("PUT /api/users/:id cambia active sin 500 (bug fix)", async () => {
   if (!server || !adminToken) return;
 
   // Creamos un usuario de prueba
@@ -139,4 +138,5 @@ it("PUT /api/users/:id cambia active sin 500 (bug fix)", async () => {
   );
   expect(on.status).toBe(200);
   expect(on.body.data.active).toBe(1);
+  });
 });

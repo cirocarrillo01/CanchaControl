@@ -31,7 +31,7 @@ import { useNotify } from "../context/NotifyContext";
 import { useAuth } from "../context/AuthContext";
 import { roleLabel } from "../utils/format";
 
-const ROLES = ["administrador", "cliente", "dueno", "vigilancia"];
+const ROLES = ["administrador", "cliente", "auditor", "vigilancia"];
 const EMPTY = {
   name: "",
   email: "",
@@ -370,3 +370,4 @@ export default function Users() {
     </Box>
   );
 }
+

@@ -26,12 +26,12 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const BOOKING_SELECT = `
   SELECT b.*, c.name AS court_name,
-    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.kind = 'reserva'), 0) AS paid_reservation,
-    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.kind = 'tiempo_adicional'), 0) AS paid_extra
+    COALESCE((SELECT SUM(CASE WHEN p.kind = 'devolucion' THEN -p.amount ELSE p.amount END)
+              FROM payments p WHERE p.booking_id = b.id), 0) AS net_paid
   FROM bookings b JOIN courts c ON c.id = b.court_id`;
 
 const decorate = (b) => {
-  const totalPaid = Number(b.paid_reservation ?? 0) + Number(b.paid_extra ?? 0);
+  const totalPaid = Number(b.net_paid ?? 0);
   return {
     ...b,
     payment_status:
@@ -202,6 +202,16 @@ export const listBookings = async ({ user, filters = {} }) => {
     params.push(like, like, like);
   }
 
+  if (filters.status) {
+    where.push("b.status = ?");
+    params.push(filters.status);
+  }
+
+  const now = nowBogota();
+  const nowSec = toMin(now.time) * 60 + Number(now.time.split(":")[2] || 0);
+  const settings = await getSettings();
+  const block = resolveSpan(settings.block_minutes);
+
   const whereSql = where.length ? ` WHERE ${where.join(" AND ")}` : "";
 
   const [countRows] = await pool.query(
@@ -282,7 +292,7 @@ export const getTimers = async () => {
   const nowSec = toMin(now.time) * 60 + Number(now.time.split(":")[2] || 0);
 
   const [courts] = await pool.query(
-    "SELECT id, name FROM courts WHERE status = 'activa' ORDER BY name",
+    "SELECT id, name, status FROM courts WHERE status <> 'inactiva' ORDER BY name",
   );
 
   const [bookings] = await pool.query(
@@ -359,6 +369,7 @@ export const getTimers = async () => {
       return {
         court_id: court.id,
         court_name: court.name,
+        court_status: court.status,
         phase: "free",
         status: null,
         booking: null,
@@ -389,6 +400,7 @@ export const getTimers = async () => {
     return {
       court_id: court.id,
       court_name: court.name,
+      court_status: court.status,
       phase: current._phase,
       status: current.status,
       booking: decorate(current),
@@ -695,8 +707,7 @@ export const registerPayment = async (
         `No se puede cobrar una reserva ${booking.status}`,
       );
 
-    const totalPaid =
-      Number(booking.paid_reservation ?? 0) + Number(booking.paid_extra ?? 0);
+    const totalPaid = Number(booking.net_paid ?? 0);
     const saldo = Number(booking.price_total) - totalPaid;
     if (Number(amount) > saldo)
       throw new AppError(400, `El pago excede el saldo pendiente (${saldo})`);
@@ -759,13 +770,21 @@ export const addExtraTime = async (
     );
     if (!check.ok) throw new AppError(409, check.message);
 
+    const newEndMin =
+      toMin(booking.start_time) +
+      booking.duration_blocks * block +
+      (booking.extra_minutes ?? 0) +
+      mins;
+    const newEndStr = hhmmss(newEndMin);
+
     await conn.query(
       `UPDATE bookings
          SET extra_minutes = extra_minutes + ?,
              price_total = price_total + ?,
+             timer_ends_at = CONCAT(?, ?),
              status = 'en_curso'
        WHERE id = ?`,
-      [mins, amt, id],
+      [mins, amt, booking.date, ` ${newEndStr}`, id],
     );
 
     const [pr] = await conn.query(
@@ -848,13 +867,20 @@ export const addNextBlock = async (
       throw e;
     }
 
+    const newEndMin =
+      toMin(booking.start_time) +
+      (booking.duration_blocks + 1) * block +
+      (booking.extra_minutes ?? 0);
+    const newEnd = hhmmss(newEndMin);
+
     await conn.query(
       `UPDATE bookings
          SET duration_blocks = duration_blocks + 1,
              price_total = price_total + ?,
+             timer_ends_at = CONCAT(?, ?),
              status = 'en_curso'
        WHERE id = ?`,
-      [price, id],
+      [price, booking.date, ` ${newEnd}`, id],
     );
 
     const [pr] = await conn.query(
@@ -896,7 +922,7 @@ export const startTimer = async (id, { extra_minutes = 0 }, user) => {
     const ends = addMinutes(start, totalMin);
 
     await conn.query(
-      `UPDATE bookings SET status = 'en_curso', timer_started_at = ?, timer_ends_at = ?, extra_minutes = ? WHERE id = ?`,
+      `UPDATE bookings SET status = 'en_curso', timer_started_at = ?, timer_ends_at = ?, extra_minutes = extra_minutes + ? WHERE id = ?`,
       [start, ends, Number(extra_minutes), id],
     );
     await logAction(conn, {
@@ -1031,6 +1057,8 @@ export const refundBooking = async (id, body, user) => {
       "ocupada",
       "en_curso",
       "finalizada",
+      "cancelada",
+      "vencida",
     ];
     if (!refundableStatuses.includes(booking.status))
       throw new AppError(
@@ -1113,6 +1141,32 @@ export const refundBooking = async (id, body, user) => {
         paid_at: paidAt,
         new_status: newStatus,
       },
+    });
+
+    return findOrFail(id, conn);
+  });
+};
+
+// REVERTIR NO SHOW
+export const revertNoShow = async (id, user) => {
+  return withTransaction(async (conn) => {
+    const booking = await findOrFail(id, conn);
+
+    if (booking.status !== "no_show") {
+      throw new AppError(409, `La reserva no está en estado No Show (actual: ${booking.status})`);
+    }
+
+    await conn.query(
+      `UPDATE bookings SET status = 'finalizada' WHERE id = ?`,
+      [id],
+    );
+
+    await logAction(conn, {
+      entity: "booking",
+      entityId: Number(id),
+      action: "revert_no_show",
+      userId: user.id,
+      detail: { previous_status: "no_show", new_status: "finalizada" },
     });
 
     return findOrFail(id, conn);

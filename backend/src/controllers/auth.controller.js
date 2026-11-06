@@ -85,17 +85,15 @@ export const changePassword = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Contraseña actualizada" });
 });
 
-/** DELETE /api/auth/me · Privado · Autocierre de cuenta (cliente y admin) */
+/** DELETE /api/auth/me · Privado · Autocierre de cuenta (solo cliente) */
 export const deleteMe = asyncHandler(async (req, res) => {
   const { id, role } = req.user;
 
   if (role === "administrador") {
-    const admins = await User.countActiveAdmins();
-    if (admins <= 1)
-      throw new AppError(
-        409,
-        "No puedes eliminar tu cuenta: eres el único administrador activo. Crea otro admin primero.",
-      );
+    throw new AppError(
+      403,
+      "Los administradores no pueden eliminar su propia cuenta desde el perfil. Deben ser eliminados por otro administrador.",
+    );
   }
 
   if (role === "cliente") {

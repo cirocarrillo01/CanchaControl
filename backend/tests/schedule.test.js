@@ -37,7 +37,7 @@ describe("schedule.service.js", () => {
       expect(blocks[3].end).toBe("12:00:00");
     });
     it("usa block_minutes personalizado", () => {
-      const blocks = buildBlocks({ open_time: "08:00:00", close_time="10:00:00", block_minutes: 30 });
+      const blocks = buildBlocks({ open_time: "08:00:00", close_time: "10:00:00", block_minutes: 30 });
       expect(blocks).toHaveLength(4);
     });
   });

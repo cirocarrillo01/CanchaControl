@@ -1,6 +1,5 @@
 // tests/booking.service.integration.test.js — Pruebas de integración de booking.service
 // Requiere MySQL con base de datos cancha_control_test creada y esquema aplicado.
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import { pool } from "../src/config/db.js";
 import {
   createBooking,
@@ -13,6 +12,12 @@ import {
 import { loadHolidays } from "../src/services/schedule.service.js";
 
 jest.setTimeout(20000);
+
+const futureDate = (offset = 1) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
 
 const ADMIN_USER = { id: 1, role: "administrador", name: "Admin Test" };
 const CLIENT_USER = { id: 2, role: "cliente", name: "Cliente Test" };
@@ -88,7 +93,7 @@ describe("booking.service (integración)", () => {
     testBooking = await createBooking(
       {
         court_id: testCourtId,
-        date: "2026-11-02",
+        date: futureDate(2),
         start_time: "10:00:00",
         customer_name: "Cliente Reserva",
         customer_phone: "3009999999",
@@ -130,7 +135,7 @@ describe("booking.service (integración)", () => {
     const b = await createBooking(
       {
         court_id: testCourtId,
-        date: "2026-11-02",
+        date: futureDate(2),
         start_time: "11:00:00",
         customer_name: "Cliente Online",
         customer_phone: "3008888888",
@@ -169,7 +174,7 @@ describe("booking.service (integración)", () => {
     const b = await createBooking(
       {
         court_id: testCourtId,
-        date: "2026-11-04",
+        date: futureDate(4),
         start_time: "14:00:00",
         customer_name: "Pago Test",
         customer_phone: "3006666666",
@@ -189,7 +194,7 @@ describe("booking.service (integración)", () => {
     const b = await createBooking(
       {
         court_id: testCourtId,
-        date: "2026-11-05",
+        date: futureDate(5),
         start_time: "15:00:00",
         customer_name: "Pago Exceso",
         customer_phone: "3005555555",
@@ -214,7 +219,7 @@ describe("booking.service (integración)", () => {
     const b = await createBooking(
       {
         court_id: testCourtId,
-        date: "2026-11-06",
+        date: futureDate(6),
         start_time: "16:00:00",
         customer_name: "Cancelar Test",
         customer_phone: "3004444444",

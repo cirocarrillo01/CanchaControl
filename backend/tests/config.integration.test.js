@@ -1,5 +1,4 @@
 // tests/config.integration.test.js — Pruebas de integración de API de configuración
-import { describe, it, expect, beforeAll, afterAll } from "jest";
 import http from "http";
 import { app } from "../src/server.js";
 

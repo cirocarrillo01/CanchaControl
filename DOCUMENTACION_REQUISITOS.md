@@ -356,11 +356,11 @@ frontend/src/
     Login.jsx            # Inicio de sesión
     Register.jsx         # Registro de clientes
     ChangePassword.jsx   # Cambio de contraseña (RF03)
-    Bookings.jsx         # Gestión de reservas (admin/dueno/cliente)
+    Bookings.jsx         # Gestión de reservas (admin/auditor/cliente)
     MyBooking.jsx        # Mis reservas (cliente)
     Timers.jsx           # Cronómetros por cancha (admin)
     Today.jsx            # Lista del día (admin/vigilancia)
-    Reports.jsx          # Reportes (admin/dueno)
+    Reports.jsx          # Reportes (admin/auditor)
     Users.jsx            # Gestión de usuarios (admin)
     Config.jsx           # Configuración (canchas, settings, rates)
   components/

@@ -117,6 +117,13 @@ export const finish = asyncHandler(async (req, res) => {
   });
 });
 
+export const revertNoShow = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    data: await svc.revertNoShow(req.params.id, req.user),
+  });
+});
+
 export const checkIn = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await svc.checkIn(req.params.id, req.user) });
 });

@@ -228,7 +228,7 @@ curl http://localhost:5000/api/health
 | Rol           | Correo                       | Contraseña   |
 | ------------- | ---------------------------- | ------------ |
 | Administrador | admin@canchacontrol.com      | Admin123\*   |
-| Dueño         | dueno@canchacontrol.com      | Dueno123\*   |
+| Dueño         | auditor@canchacontrol.com      | auditor123\*   |
 | Vigilancia    | vigilancia@canchacontrol.com | Vigia123\*   |
 | Cliente       | cliente@canchacontrol.com    | Cliente123\* |
 
@@ -610,3 +610,4 @@ Este proyecto está bajo la licencia **ISC**.
 Desarrollado con Node.js, Express, MySQL, React y Material UI
 
 </div>
+

@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Divider,
   Grid,
   MenuItem,
   Stack,
@@ -303,7 +302,7 @@ export default function Reports() {
             <Card sx={{ mb: 2 }}>
               <CardContent>
                 <Typography variant="subtitle2" gutterBottom>Flujo de caja del rango</Typography>
-                <Stack direction="row" spacing={2}>
+                <Grid container spacing={2}>
                   <Grid item xs={6} sm={3} md={2}>
                     <Kpi label="Ingresos netos" value={fmtMoney(finance.total_income)} />
                   </Grid>
@@ -316,7 +315,7 @@ export default function Reports() {
                   <Grid item xs={6} sm={3} md={2}>
                     <Kpi label="Margen" value={finance.margin.toFixed(1) + "%"} />
                   </Grid>
-                </Stack>
+                </Grid>
               </CardContent>
             </Card>
           )}

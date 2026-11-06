@@ -1,5 +1,4 @@
 // tests/AppError.test.js — Pruebas unitarias de AppError y check
-import { describe, it, expect } from "jest";
 import AppError from "../src/utils/AppError.js";
 import { check } from "../src/utils/AppError.js";
 

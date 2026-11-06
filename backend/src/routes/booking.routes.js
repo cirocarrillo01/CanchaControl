@@ -39,7 +39,7 @@ router.get("/bookings/timers", protect, authorize("administrador"), b.timers);
 router.get(
   "/bookings",
   protect,
-  authorize("administrador", "dueno"),
+  authorize("administrador", "auditor"),
   b.listBookingsAll,
 );
 
@@ -104,6 +104,13 @@ router.post(
 );
 
 router.post(
+  "/bookings/:id/revert-no-show",
+  protect,
+  authorize("administrador"),
+  b.revertNoShow,
+);
+
+router.post(
   "/bookings/:id/checkin",
   protect,
   authorize("administrador", "vigilancia"),
@@ -128,7 +135,12 @@ router.post(
 // =====================================================================
 // DETALLE (param genérico, ÚLTIMO)
 // =====================================================================
-router.get("/bookings/:id", protect, authorize("cliente"), b.detail);
+router.get(
+  "/bookings/:id",
+  protect,
+  authorize("cliente", "administrador", "auditor"),
+  b.detail
+);
 
 // =====================================================================
 // BLOQUEOS
@@ -142,3 +154,4 @@ router.delete(
 );
 
 export default router;
+

@@ -47,15 +47,10 @@ export const authorize =
   (req, res, next) => {
     const userRole = req.user?.role;
 
-    console.log(
-      `[AUTH] authorize(path="${req.path}", userRole="${userRole}", allowed=${JSON.stringify(allowedRoles)})`,
-    );
-
     if (!userRole) {
       return res.status(401).json({
         success: false,
         message: "No hay usuario en la sesión",
-        debug: { userRole: null, allowedRoles, path: req.path },
       });
     }
 
@@ -63,7 +58,6 @@ export const authorize =
       return res.status(403).json({
         success: false,
         message: "Tu rol no tiene permiso para esta acción",
-        debug: { userRole, allowedRoles, path: req.path },
       });
     }
     next();

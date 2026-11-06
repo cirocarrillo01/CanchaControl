@@ -45,6 +45,8 @@ const STATUS_COLOR = {
   finalizada: "success",
   cancelada: "default",
   vencida: "default",
+  no_show: "default",
+  reembolsada: "secondary",
 };
 const PAY_COLOR = {
   pendiente: "default",
@@ -61,6 +63,8 @@ const FILTER_OPTIONS = [
   { value: "finalizada", label: "Finalizada" },
   { value: "cancelada", label: "Cancelada" },
   { value: "vencida", label: "Vencida" },
+  { value: "no_show", label: "No Show" },
+  { value: "reembolsada", label: "Reembolsada" },
 ];
 
 export default function Bookings() {
@@ -136,9 +140,8 @@ export default function Bookings() {
   const openPayment = (booking) => {
     setMenu({ anchor: null, booking: null });
     setPayBooking(booking);
-    const saldo =
-      (booking.price_total ?? 0) -
-      ((booking.paid_reservation ?? 0) + (booking.paid_extra ?? 0));
+    const neto = booking.net_paid ?? 0;
+    const saldo = (booking.price_total ?? 0) - neto;
     setPayAmount(String(saldo > 0 ? saldo : (booking.price_total ?? "")));
     setPayMethod("efectivo");
     setPayOpen(true);
@@ -192,6 +195,18 @@ export default function Bookings() {
       notify(errMsg(e), "error");
     } finally {
       setCancelBusy(false);
+    }
+  };
+
+  // --------- Revertir No Show ---------
+  const revertNoShow = async (booking) => {
+    if (!window.confirm("¿Marcar esta reserva como finalizada manualmente?")) return;
+    try {
+      await API.post(`/bookings/${booking.id}/revert-no-show`);
+      notify("Reserva marcada como finalizada", "success");
+      load();
+    } catch (e) {
+      notify(errMsg(e), "error");
     }
   };
 
@@ -361,8 +376,13 @@ export default function Bookings() {
                 <TableCell>
                   <Chip
                     size="small"
-                    label={statusLabel(b.status)}
-                    color={STATUS_COLOR[b.status] ?? "default"}
+                    label={
+                      statusLabel(b.status)
+                    }
+                    color={
+                      STATUS_COLOR[b.status] ??
+                      "default"
+                    }
                   />
                 </TableCell>
                 <TableCell>
@@ -467,6 +487,11 @@ export default function Bookings() {
                 Finalizar turno
               </MenuItem>
             )}
+            {menu.booking.status === "no_show" && (
+              <MenuItem onClick={() => revertNoShow(menu.booking)}>
+                Marcar como finalizada (Revertir No Show)
+              </MenuItem>
+            )}
           </>
         )}
       </Menu>
@@ -485,12 +510,7 @@ export default function Bookings() {
             </Typography>
             <Typography variant="body2">
               Total: <b>{fmtMoney(payBooking?.price_total)}</b> · Pagado:{" "}
-              <b>
-                {fmtMoney(
-                  (payBooking?.paid_reservation ?? 0) +
-                    (payBooking?.paid_extra ?? 0),
-                )}
-              </b>
+              <b>{fmtMoney(payBooking?.net_paid ?? 0)}</b>
             </Typography>
             <TextField
               label="Monto a cobrar"
@@ -533,17 +553,22 @@ export default function Bookings() {
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle>Cancelar reserva</DialogTitle>
+        <DialogTitle sx={{ bgcolor: 'error.main', color: 'white', mb: 2 }}>
+          Cancelar Reserva
+        </DialogTitle>
         <DialogContent>
-          <Stack spacing={2} mt={1}>
-            <Typography variant="body2">
-              Reserva <b>{cancelBooking?.code}</b> · {cancelBooking?.court_name}
-            </Typography>
-            <Typography variant="body2">
-              Fecha: <b>{cancelBooking ? fmtDate(cancelBooking.date) : ""}</b> ·
-              Hora:{" "}
-              <b>{cancelBooking ? fmtTime(cancelBooking.start_time) : ""}</b>
-            </Typography>
+          <Stack spacing={2}>
+            <Alert severity="warning">
+              Esta acción es irreversible. El bloque será liberado y la reserva cambiará a estado "Cancelada".
+            </Alert>
+            
+            <Box sx={{ p: 2, bgcolor: '#f9f9f9', borderRadius: 1 }}>
+              <Typography variant="body2"><b>Reserva:</b> {cancelBooking?.code}</Typography>
+              <Typography variant="body2"><b>Cancha:</b> {cancelBooking?.court_name}</Typography>
+              <Typography variant="body2"><b>Cliente:</b> {cancelBooking?.customer_name}</Typography>
+              <Typography variant="body2"><b>Total a perder:</b> {fmtMoney(cancelBooking?.price_total)}</Typography>
+            </Box>
+
             <TextField
               label="Motivo de la cancelación"
               value={cancelReason}
@@ -552,20 +577,22 @@ export default function Bookings() {
               multiline
               minRows={2}
               autoFocus
+              placeholder="Ej: Cliente canceló por lluvia"
             />
           </Stack>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setCancelOpen(false)} disabled={cancelBusy}>
-            Volver
+            Cancelar
           </Button>
           <Button
             variant="contained"
             color="error"
             onClick={submitCancel}
             disabled={cancelBusy}
+            startIcon={cancelBusy ? <CircularProgress size={16} color="inherit" /> : null}
           >
-            {cancelBusy ? "Cancelando…" : "Confirmar cancelación"}
+            {cancelBusy ? "Procesando…" : "Aceptar"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -639,13 +666,8 @@ export default function Bookings() {
               Reserva <b>{refundBooking?.code}</b> · {refundBooking?.court_name}
             </Typography>
             <Typography variant="body2">
-              Pagado total:{" "}
-              <b>
-                {fmtMoney(
-                  (refundBooking?.paid_reservation ?? 0) +
-                    (refundBooking?.paid_extra ?? 0),
-                )}
-              </b>
+              Pagado neto:{" "}
+              <b>{fmtMoney(refundBooking?.net_paid ?? 0)}</b>
             </Typography>
             <Typography variant="body2" color="error.main">
               Máximo reembolsable: pagos menos devoluciones previas de esta
